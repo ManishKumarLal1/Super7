@@ -7,6 +7,7 @@ import { SquadPool } from './components/SquadPool';
 import { PicksPanel } from './components/PicksPanel';
 import { TurnIndicator } from './components/TurnIndicator';
 import { CoinToss } from './components/CoinToss';
+import { PowersScreen } from './components/PowersScreen';
 
 export function DraftRoom() {
   const { matchId } = useParams<{ matchId: string }>();
@@ -25,13 +26,13 @@ export function DraftRoom() {
   const simulateOpponentSubstitute = useDraftStore(
     (s) => s.simulateOpponentSubstitute
   );
-  const reset = useDraftStore((s) => s.reset);
 
+  // Init once
   useEffect(() => {
     if (matchId) initDraft(matchId, stake);
-    return () => reset();
-  }, [matchId, stake, initDraft, reset]);
+  }, [matchId, stake, initDraft]);
 
+  // Opponent simulation
   useEffect(() => {
     if (phase === 'drafting') {
       const side = currentSide(pickIndex, firstPicker);
@@ -56,7 +57,9 @@ export function DraftRoom() {
     simulateOpponentSubstitute,
   ]);
 
+  // Guarded entrance animation — only when draft elements exist
   useGSAP(() => {
+    if (phase !== 'drafting' && phase !== 'substitute') return;
     gsap.from('.draft-fade', {
       opacity: 0,
       y: 20,
@@ -64,7 +67,7 @@ export function DraftRoom() {
       stagger: 0.08,
       ease: 'power3.out',
     });
-  }, { scope: pageRef });
+  }, { scope: pageRef, dependencies: [phase] });
 
   const currentTurnSide =
     phase === 'drafting'
@@ -137,23 +140,7 @@ export function DraftRoom() {
           </>
         )}
 
-        {phase === 'powers' && (
-          <div className="draft-fade mt-8 rounded-3xl border border-emerald-400/30 bg-emerald-400/[0.04] p-8 text-center">
-            <div className="text-xs uppercase tracking-[0.3em] text-emerald-400">
-              Draft complete
-            </div>
-            <h2 className="mt-3 text-3xl font-bold text-white">
-              Time to assign your powers.
-            </h2>
-            <p className="mt-2 text-white/50">
-              Choose Captain, Vice-Captain, Poison target, and confirm your
-              substitute.
-            </p>
-            <button className="mt-6 rounded-full bg-emerald-400 px-8 py-3 text-sm font-semibold text-black transition hover:scale-105">
-              Continue to powers →
-            </button>
-          </div>
-        )}
+        {phase === 'powers' && <PowersScreen />}
       </div>
     </div>
   );
