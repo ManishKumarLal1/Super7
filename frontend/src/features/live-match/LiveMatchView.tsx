@@ -11,6 +11,7 @@ import { LiveScoreboard } from './components/LiveScoreboard';
 import { HeadToHeadBar } from './components/HeadToHeadBar';
 import { PlayerPointsRow } from './components/PlayerPointsRow';
 import { EventTicker } from './components/EventTicker';
+import { useMatchesStore } from '../wallet/matchesStore';
 
 
 export function LiveMatchView() {
@@ -162,6 +163,20 @@ useEffect(() => {
   const tied = myPoints === opponentPoints;
 
   console.log('myPicks:', myPicks, 'opponentPicks:', opponentPicks);
+
+  const settleContest = useMatchesStore((s) => s.settleContest);
+const activeContest = useMatchesStore((s) => s.active);
+
+// Settle the contest once match ends
+useEffect(() => {
+  if (!isComplete) return;
+  if (!activeContest) return; // already settled or no contest
+
+  const result: 'won' | 'lost' | 'tied' =
+    myPoints > opponentPoints ? 'won' : myPoints < opponentPoints ? 'lost' : 'tied';
+
+  settleContest(result, myPoints, opponentPoints);
+}, [isComplete, activeContest, myPoints, opponentPoints, settleContest]);
 
   return (
     <div ref={pageRef} className="min-h-screen bg-black pt-24 pb-16">

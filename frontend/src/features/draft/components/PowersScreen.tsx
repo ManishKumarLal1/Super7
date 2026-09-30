@@ -25,7 +25,7 @@ const STEP_COPY: Record<
     eyebrow: 'Step 3 of 4',
     title: 'Poison one of their players.',
     subtitle:
-      'Half of that player\'s points flow to you. They won\'t see it coming.',
+      "Half of that player's points flow to you. They won't see it coming.",
   },
   confirm: {
     eyebrow: 'Final step',
@@ -33,6 +33,9 @@ const STEP_COPY: Record<
     subtitle: 'Review your powers. No changes after this.',
   },
 };
+
+const VALID_STEPS = ['captain', 'vice-captain', 'poison', 'confirm'] as const;
+type ValidStep = (typeof VALID_STEPS)[number];
 
 export function PowersScreen() {
   const navigate = useNavigate();
@@ -43,7 +46,7 @@ export function PowersScreen() {
   const players = useDraftStore((s) => s.players);
   const mySubstitute = useDraftStore((s) => s.mySubstitute);
 
-  const step = usePowersStore((s) => s.step);
+  const rawStep = usePowersStore((s) => s.step);
   const myCaptain = usePowersStore((s) => s.myCaptain);
   const myViceCaptain = usePowersStore((s) => s.myViceCaptain);
   const myPoison = usePowersStore((s) => s.myPoison);
@@ -52,56 +55,69 @@ export function PowersScreen() {
   const setPoison = usePowersStore((s) => s.setPoison);
   const confirmPowers = usePowersStore((s) => s.confirm);
   const simulateOpponentPowers = usePowersStore((s) => s.simulateOpponentPowers);
-  
 
-  // Simulate opponent powers when entering confirm
+  // Fallback to 'captain' if step is invalid (e.g. stale 'complete' from persist)
+  const step: ValidStep = (VALID_STEPS as readonly string[]).includes(rawStep)
+    ? (rawStep as ValidStep)
+    : 'captain';
+
+  // Self-heal persisted 'complete' state on mount
+  useEffect(() => {
+    const state = usePowersStore.getState();
+    if (
+      state.step === 'complete' ||
+      !(VALID_STEPS as readonly string[]).includes(state.step)
+    ) {
+      state.reset();
+    }
+  }, []);
+
+  // Simulate opponent powers once we reach confirm
   useEffect(() => {
     if (step === 'confirm') {
       simulateOpponentPowers(opponentPicks, myPicks);
     }
   }, [step, opponentPicks, myPicks, simulateOpponentPowers]);
 
-  // Reset powers whenever we enter a fresh powers phase
-useEffect(() => {
-  const state = usePowersStore.getState();
-  const isFreshPhase =
-    state.step === 'complete' ||
-    !['captain', 'vice-captain', 'poison', 'confirm'].includes(state.step);
+  // Safe entrance animation — fromTo + clearProps so nothing gets stuck
+  useGSAP(() => {
+    const targets = gsap.utils.toArray<HTMLElement>('.powers-fade');
+    if (targets.length === 0) return;
 
-  if (isFreshPhase) {
-    state.reset();
-  }
-}, []);
+    gsap.fromTo(
+      targets,
+      { opacity: 0, y: 20 },
+      {
+        opacity: 1,
+        y: 0,
+        duration: 0.5,
+        stagger: 0.05,
+        ease: 'power3.out',
+        clearProps: 'opacity,transform',
+      }
+    );
+  }, { scope: pageRef, dependencies: [step] });
 
-
- const myPlayers = myPicks
-  .map((id) => players.find((p) => p.id === id))
-  .filter(Boolean) as typeof players;
-
-console.log('DEBUG myPicks:', myPicks);
-console.log('DEBUG players:', players);
-console.log('DEBUG myPlayers:', myPlayers);
+  const myPlayers = myPicks
+    .map((id) => players.find((p) => p.id === id))
+    .filter(Boolean) as typeof players;
 
   const opponentPlayers = opponentPicks
     .map((id) => players.find((p) => p.id === id))
     .filter(Boolean) as typeof players;
 
-  const copy = STEP_COPY[step] ?? STEP_COPY.captain;
+  const copy = STEP_COPY[step];
 
   const handleConfirm = () => {
     confirmPowers();
-    // Navigate to live match (route we'll build next)
     navigate('/live-match/demo?stake=200');
   };
-
-  console.log('DEBUG step:', step);
-console.log('DEBUG full powers store:', usePowersStore.getState());
 
   return (
     <div ref={pageRef} className="min-h-screen bg-black pt-28 pb-16">
       <div className="mx-auto max-w-6xl px-6">
         {/* Header */}
-        <div className=" mb-10 flex flex-wrap items-center justify-between gap-6">
+        <div className="powers-fade mb-10 flex flex-wrap items-center justify-between gap-6">
           <div>
             <div className="text-xs uppercase tracking-[0.3em] text-emerald-400">
               {copy.eyebrow}
@@ -191,7 +207,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div className=" rounded-3xl border border-white/10 bg-white/[0.01] p-6 md:p-8">
+    <div className="powers-fade rounded-3xl border border-white/10 bg-white/[0.01] p-6 md:p-8">
       <div className="mb-5 text-xs font-semibold uppercase tracking-[0.2em] text-white/40">
         {title}
       </div>
@@ -249,7 +265,7 @@ function ConfirmPanel({
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="powers-fade space-y-4">
       <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.02]">
         {rows.map((row, i) => (
           <div

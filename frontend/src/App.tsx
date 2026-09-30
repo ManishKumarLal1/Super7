@@ -10,6 +10,11 @@ import { SignInPage } from './pages/SignInPage';
 import { ContestsPage } from './pages/ContestsPage';
 import { DraftRoom } from './features/draft/DraftRoom';
 import { LiveMatchView } from './features/live-match/LiveMatchView';
+import { WalletPage } from './pages/WalletPage';
+import { HistoryPage } from './pages/HistoryPage';
+import { ProfilePage } from './pages/ProfilePage';
+import { FriendsPage } from './pages/FriendsPage';
+import { ContestWaitingRoom } from './features/contests/components/ContestWaitingRoom';
 
 function App() {
   useSmoothScroll();
@@ -33,6 +38,11 @@ function App() {
         <Route path="/contests" element={<ContestsPage />} />
         <Route path="/draft/:matchId" element={<DraftRoom />} />
         <Route path="/live-match/:matchId" element={<LiveMatchView />} />
+        <Route path="/wallet" element={<WalletPage />} />
+        <Route path="/history" element={<HistoryPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/friends" element={<FriendsPage />} />
+        <Route path="/contest/:code" element={<ContestWaitingRoom />} />
       </Routes>
       <Footer />
     </>
