@@ -15,6 +15,7 @@ import { HistoryPage } from './pages/HistoryPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { FriendsPage } from './pages/FriendsPage';
 import { ContestWaitingRoom } from './features/contests/components/ContestWaitingRoom';
+import { LeaderboardPage } from './pages/LeaderboardPage';
 
 function App() {
   useSmoothScroll();
@@ -43,6 +44,7 @@ function App() {
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/friends" element={<FriendsPage />} />
         <Route path="/contest/:code" element={<ContestWaitingRoom />} />
+        <Route path="/leaderboard" element={<LeaderboardPage />} />
       </Routes>
       <Footer />
     </>
