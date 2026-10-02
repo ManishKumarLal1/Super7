@@ -167,16 +167,49 @@ useEffect(() => {
   const settleContest = useMatchesStore((s) => s.settleContest);
 const activeContest = useMatchesStore((s) => s.active);
 
-// Settle the contest once match ends
-useEffect(() => {
+  useEffect(() => {
   if (!isComplete) return;
-  if (!activeContest) return; // already settled or no contest
+  if (!activeContest) return;
 
   const result: 'won' | 'lost' | 'tied' =
     myPoints > opponentPoints ? 'won' : myPoints < opponentPoints ? 'lost' : 'tied';
 
-  settleContest(result, myPoints, opponentPoints);
-}, [isComplete, activeContest, myPoints, opponentPoints, settleContest]);
+  settleContest({
+    result,
+    myPoints,
+    opponentPoints,
+    details: {
+      myPicks,
+      opponentPicks,
+      mySubstitute,
+      opponentSubstitute,
+      myCaptain,
+      myViceCaptain,
+      myPoison,
+      opponentCaptain,
+      opponentViceCaptain,
+      opponentPoison,
+      basePoints: { ...totalPoints },
+    },
+  });
+}, [
+  isComplete,
+  activeContest,
+  myPoints,
+  opponentPoints,
+  settleContest,
+  myPicks,
+  opponentPicks,
+  mySubstitute,
+  opponentSubstitute,
+  myCaptain,
+  myViceCaptain,
+  myPoison,
+  opponentCaptain,
+  opponentViceCaptain,
+  opponentPoison,
+  totalPoints,
+]);
 
   return (
     <div ref={pageRef} className="min-h-screen bg-black pt-24 pb-16">

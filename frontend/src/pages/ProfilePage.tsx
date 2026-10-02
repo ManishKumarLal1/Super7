@@ -150,8 +150,9 @@ export function ProfilePage() {
                 const won = match.result === 'won';
                 const lost = match.result === 'lost';
                 return (
-                  <div
+                  <Link
                     key={match.id}
+                    to={`/match/${match.id}`}
                     className={`flex items-center gap-4 rounded-2xl border p-4 ${
                       won
                         ? 'border-emerald-400/20 bg-emerald-400/[0.04]'
@@ -183,7 +184,7 @@ export function ProfilePage() {
                         {new Date(match.timestamp).toLocaleDateString()}
                       </div>
                     </div>
-                  </div>
+                  </Link>
                 );
               })}
             </div>

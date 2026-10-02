@@ -16,6 +16,10 @@ import { ProfilePage } from './pages/ProfilePage';
 import { FriendsPage } from './pages/FriendsPage';
 import { ContestWaitingRoom } from './features/contests/components/ContestWaitingRoom';
 import { LeaderboardPage } from './pages/LeaderboardPage';
+import { UserProfilePage } from './pages/UserProfilePage';
+import { MatchDetailPage } from './pages/MatchDetailPage';
+import { HowToPlaySection } from './features/landing/components/HowToPlaySection';
+import { PointsDistributionSection } from './features/landing/components/PointsDistributionSection';
 
 function App() {
   useSmoothScroll();
@@ -31,6 +35,8 @@ function App() {
               <HeroSection />
               <HowItWorksSection />
               <FeatureSection />
+               <HowToPlaySection />
+      <PointsDistributionSection />
               <CTASection />
             </>
           }
@@ -45,6 +51,8 @@ function App() {
         <Route path="/friends" element={<FriendsPage />} />
         <Route path="/contest/:code" element={<ContestWaitingRoom />} />
         <Route path="/leaderboard" element={<LeaderboardPage />} />
+        <Route path="/user/:id" element={<UserProfilePage />} />
+        <Route path="/match/:id" element={<MatchDetailPage />} />
       </Routes>
       <Footer />
     </>

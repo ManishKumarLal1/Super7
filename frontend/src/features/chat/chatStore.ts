@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 
 export type ChatMessage = {
   id: string;
-  threadId: string;
+  threadId: string;         // friend's id
   senderId: 'me' | 'system' | string;
   senderName: string;
   text: string;
@@ -17,13 +17,17 @@ export type ChatMessage = {
 
 type ChatState = {
   messages: ChatMessage[];
+  chatOpen: boolean;
+  activeThreadId: string | null;
+
   sendMessage: (
     threadId: string,
     text: string,
     metadata?: ChatMessage['metadata']
   ) => void;
   markThreadRead: (threadId: string) => void;
-  unreadCount: (threadId?: string) => number;
+  openChat: (threadId?: string) => void;
+  closeChat: () => void;
   reset: () => void;
 };
 
@@ -31,6 +35,8 @@ export const useChatStore = create<ChatState>()(
   persist(
     (set, get) => ({
       messages: [],
+      chatOpen: false,
+      activeThreadId: null,
 
       sendMessage: (threadId, text, metadata) => {
         const msg: ChatMessage = {
@@ -54,21 +60,22 @@ export const useChatStore = create<ChatState>()(
         }));
       },
 
-      unreadCount: (threadId) => {
-        const { messages } = get();
-        if (threadId) {
-          return messages.filter(
-            (m) => m.threadId === threadId && !m.read && m.senderId !== 'me'
-          ).length;
-        }
-        return messages.filter((m) => !m.read && m.senderId !== 'me').length;
-      },
+      openChat: (threadId) =>
+        set({
+          chatOpen: true,
+          activeThreadId: threadId ?? null,
+        }),
 
-      reset: () => set({ messages: [] }),
+      closeChat: () => set({ chatOpen: false, activeThreadId: null }),
+
+      reset: () =>
+        set({ messages: [], chatOpen: false, activeThreadId: null }),
     }),
     {
       name: 'super7-chat',
       partialize: (s) => ({ messages: s.messages }),
+      // Note: chatOpen and activeThreadId are NOT persisted
+      // — they're UI state that should reset on refresh
     }
   )
 );

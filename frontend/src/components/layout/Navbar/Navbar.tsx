@@ -18,7 +18,11 @@ export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
   const isLanding = location.pathname === '/';
-  const [chatOpen, setChatOpen] = useState(false);
+
+  // Chat state from the store — no local useState
+  const chatOpen = useChatStore((s) => s.chatOpen);
+  const openChat = useChatStore((s) => s.openChat);
+  const closeChat = useChatStore((s) => s.closeChat);
   const unreadMessages = useChatStore(
     (s) => s.messages.filter((m) => !m.read && m.senderId !== 'me').length
   );
@@ -56,10 +60,7 @@ export function Navbar() {
         }`}
       >
         <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6">
-          <Link
-            to="/"
-            className="text-2xl font-bold tracking-tight text-white"
-          >
+          <Link to="/" className="text-2xl font-bold tracking-tight text-white">
             SUPER<span className="text-emerald-400">7</span>
           </Link>
 
@@ -74,7 +75,7 @@ export function Navbar() {
           <div className="flex items-center gap-3">
             <Show when="signed-in">
               <button
-                onClick={() => setChatOpen(true)}
+                onClick={() => openChat()}
                 className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white/5 text-white/70 ring-1 ring-white/10 transition hover:bg-white/10 hover:text-white"
                 aria-label="Messages"
               >
@@ -111,7 +112,7 @@ export function Navbar() {
         </div>
       </nav>
 
-      <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
+      <ChatPanel open={chatOpen} onClose={closeChat} />
     </>
   );
 }

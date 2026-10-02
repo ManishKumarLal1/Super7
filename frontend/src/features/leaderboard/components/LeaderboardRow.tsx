@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import type { LeaderboardEntry } from '../leaderboardStore';
 
 type Props = {
@@ -14,16 +15,17 @@ const RANK_STYLES: Record<number, string> = {
 export function LeaderboardRow({ entry, metric }: Props) {
   const rankStyle = RANK_STYLES[entry.rank];
   const isTop3 = entry.rank <= 3;
+  const href = entry.isMe ? '/profile' : `/user/${entry.id}`;
 
   return (
-    <div
+    <Link
+      to={href}
       className={`flex items-center gap-4 rounded-2xl border p-4 transition-all ${
         entry.isMe
           ? 'border-emerald-400/40 bg-emerald-400/[0.06]'
-          : 'border-white/10 bg-white/[0.02] hover:border-white/20'
+          : 'border-white/10 bg-white/[0.02] hover:border-white/30 hover:bg-white/[0.04]'
       }`}
     >
-      {/* Rank badge */}
       <div
         className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold ${
           rankStyle ?? 'bg-white/5 text-white/60 ring-1 ring-white/10'
@@ -32,7 +34,6 @@ export function LeaderboardRow({ entry, metric }: Props) {
         {entry.rank}
       </div>
 
-      {/* Avatar */}
       <div
         className={`flex h-11 w-11 items-center justify-center rounded-full text-sm font-bold ring-1 ${
           entry.isMe
@@ -43,7 +44,6 @@ export function LeaderboardRow({ entry, metric }: Props) {
         {entry.avatarInitials}
       </div>
 
-      {/* Name */}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="truncate text-sm font-semibold text-white">
@@ -55,7 +55,9 @@ export function LeaderboardRow({ entry, metric }: Props) {
             </span>
           )}
           {isTop3 && !entry.isMe && (
-            <span className="text-sm">{entry.rank === 1 ? '👑' : entry.rank === 2 ? '🥈' : '🥉'}</span>
+            <span className="text-sm">
+              {entry.rank === 1 ? '👑' : entry.rank === 2 ? '🥈' : '🥉'}
+            </span>
           )}
         </div>
         <div className="mt-0.5 text-[10px] uppercase tracking-widest text-white/40">
@@ -63,7 +65,6 @@ export function LeaderboardRow({ entry, metric }: Props) {
         </div>
       </div>
 
-      {/* Metric */}
       <div className="text-right">
         {metric === 'coins' ? (
           <>
@@ -89,6 +90,6 @@ export function LeaderboardRow({ entry, metric }: Props) {
           </>
         )}
       </div>
-    </div>
+    </Link>
   );
 }

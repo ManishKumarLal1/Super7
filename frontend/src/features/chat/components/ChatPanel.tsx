@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useChatStore } from '../chatStore';
 import { useFriendsStore } from '../../friends/friendsStore';
+import { Link } from 'react-router-dom';
 
 type Props = {
   open: boolean;
@@ -56,16 +57,26 @@ export function ChatPanel({ open, onClose }: Props) {
         <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
           <div className="flex items-center gap-3">
             {activeFriend && (
-              <button
-                onClick={() => setActiveThreadId(null)}
-                className="text-white/50 hover:text-white"
-              >
-                ←
-              </button>
-            )}
-            <div className="text-sm font-semibold uppercase tracking-[0.2em] text-white">
-              {activeFriend ? activeFriend.name : 'Messages'}
-            </div>
+  <button
+    onClick={() => setActiveThreadId(null)}
+    className="text-white/50 hover:text-white"
+  >
+    ←
+  </button>
+)}
+{activeFriend ? (
+  <Link
+    to={`/user/${activeFriend.id}`}
+    onClick={onClose}
+    className="text-sm font-semibold uppercase tracking-[0.2em] text-white transition hover:text-emerald-400"
+  >
+    {activeFriend.name}
+  </Link>
+) : (
+  <div className="text-sm font-semibold uppercase tracking-[0.2em] text-white">
+    Messages
+  </div>
+)}
           </div>
           <button
             onClick={onClose}
