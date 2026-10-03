@@ -2,9 +2,20 @@ import { Link } from 'react-router-dom';
 import { useUser } from '@clerk/react';
 import { useWallet } from '../features/wallet/hooks/useWallet';
 import { useMatchesStore } from '../features/wallet/matchesStore';
+import { useEffect } from 'react';
+import { useSupabase } from '../lib/useSupabase';
 
 export function ProfilePage() {
   const { user, isLoaded } = useUser();
+const supabase = useSupabase();
+
+useEffect(() => {
+  if (!supabase) return;
+  (async () => {
+    const { data, error } = await supabase.rpc('whoami').maybeSingle();
+    console.log('WHOAMI:', { data, error });
+  })();
+}, [supabase]);
   const { balance } = useWallet();
   const history = useMatchesStore((s) => s.history);
 
