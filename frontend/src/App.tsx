@@ -1,5 +1,6 @@
 import { Routes, Route } from 'react-router-dom';
 import { useSmoothScroll } from './animations/useSmoothScroll';
+import { useMyContests } from './features/contests/myContestsStore';
 import { Navbar } from './components/layout/Navbar';
 import { Footer } from './features/landing/components/Footer';
 import { HeroSection } from './features/landing/components/HeroSection';
@@ -20,9 +21,16 @@ import { UserProfilePage } from './pages/UserProfilePage';
 import { MatchDetailPage } from './pages/MatchDetailPage';
 import { HowToPlaySection } from './features/landing/components/HowToPlaySection';
 import { PointsDistributionSection } from './features/landing/components/PointsDistributionSection';
+import { MyContestsPage } from './pages/MyContestsPage';
+import { useLiveMatchEngine } from './features/live-match/useLiveMatchEngine';
+import { MatchReportPage } from './pages/MatchReportPage'
+import { useFriends } from './features/friends/friendsStore';
 
 function App() {
   useSmoothScroll();
+  useMyContests();
+  useLiveMatchEngine();
+  useFriends();
 
   return (
     <>
@@ -35,8 +43,8 @@ function App() {
               <HeroSection />
               <HowItWorksSection />
               <FeatureSection />
-               <HowToPlaySection />
-      <PointsDistributionSection />
+              <HowToPlaySection />
+              <PointsDistributionSection />
               <CTASection />
             </>
           }
@@ -53,6 +61,8 @@ function App() {
         <Route path="/leaderboard" element={<LeaderboardPage />} />
         <Route path="/user/:id" element={<UserProfilePage />} />
         <Route path="/match/:id" element={<MatchDetailPage />} />
+        <Route path="/my-contests" element={<MyContestsPage />} />
+        <Route path="/report/:entryId" element={<MatchReportPage />} />
       </Routes>
       <Footer />
     </>

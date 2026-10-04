@@ -1,84 +1,117 @@
 import { create } from 'zustand';
+import { useEffect } from 'react';
+import { useSupabase } from '../../../lib/useSupabase';
 
-type Transaction = {
+export type TxType = 'deposit' | 'escrow' | 'payout' | 'refund' | 'bonus';
+
+export type Transaction = {
   id: string;
-  type: 'escrow' | 'refund' | 'payout' | 'deposit';
+  type: TxType;
   amount: number;
   label: string;
-  timestamp: number;
+  created_at: string;
 };
+
+// Module-level Supabase ref — set once the hook mounts, used by store actions
+let _supabase: any = null;
+export function setWalletSupabase(client: any) {
+  _supabase = client;
+}
+export function getWalletSupabase() {
+  return _supabase;
+}
 
 type WalletState = {
   balance: number;
   transactions: Transaction[];
-  addCoins: (amount: number, label?: string) => void;
-  deductCoins: (amount: number, label?: string) => boolean;
-  resetWallet: () => void;
+  loading: boolean;
+  loaded: boolean;
+
+  load: () => Promise<void>;
+  deduct: (amount: number, label: string, type?: TxType) => Promise<boolean>;
+  credit: (amount: number, label: string, type?: TxType) => Promise<boolean>;
+  reset: () => void;
 };
 
-const INITIAL_BALANCE = 1000;
-
 export const useWalletStore = create<WalletState>((set, get) => ({
-  balance: INITIAL_BALANCE,
-  transactions: [
-    {
-      id: 'welcome-bonus',
-      type: 'deposit',
-      amount: 1000,
-      label: 'Welcome bonus',
-      timestamp: Date.now(),
-    },
-  ],
+  balance: 0,
+  transactions: [],
+  loading: false,
+  loaded: false,
 
-  addCoins: (amount, label = 'Coins added') => {
-    set((state) => ({
-      balance: state.balance + amount,
-      transactions: [
-        {
-          id: crypto.randomUUID(),
-          type: 'deposit',
-          amount,
-          label,
-          timestamp: Date.now(),
-        },
-        ...state.transactions,
-      ],
-    }));
+  load: async () => {
+    if (!_supabase) return;
+    set({ loading: true });
+
+    const { data: wallet } = await _supabase
+      .from('wallets')
+      .select('balance')
+      .maybeSingle();
+
+    const { data: txs } = await _supabase
+      .from('transactions')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    set({
+      balance: wallet?.balance ?? 0,
+      transactions: txs ?? [],
+      loading: false,
+      loaded: true,
+    });
   },
 
-  deductCoins: (amount, label = 'Coins spent') => {
-    const { balance } = get();
-    if (balance < amount) return false;
-
-    set((state) => ({
-      balance: state.balance - amount,
-      transactions: [
-        {
-          id: crypto.randomUUID(),
-          type: 'escrow',
-          amount: -amount,
-          label,
-          timestamp: Date.now(),
-        },
-        ...state.transactions,
-      ],
-    }));
+  deduct: async (amount, label, type = 'escrow') => {
+    if (!_supabase) return false;
+    const { data, error } = await _supabase.rpc('escrow_coins', {
+      p_amount: amount,
+      p_label: label,
+      p_type: type,
+    });
+    if (error) {
+      console.error('escrow_coins error:', error);
+      return false;
+    }
+    await get().load();
     return true;
   },
 
-  resetWallet: () =>
-    set({
-      balance: INITIAL_BALANCE,
-      transactions: [],
-    }),
+  credit: async (amount, label, type = 'payout') => {
+    if (!_supabase) return false;
+    const { data, error } = await _supabase.rpc('credit_coins', {
+      p_amount: amount,
+      p_label: label,
+      p_type: type,
+    });
+    if (error) {
+      console.error('credit_coins error:', error);
+      return false;
+    }
+    await get().load();
+    return true;
+  },
+
+  reset: () =>
+    set({ balance: 0, transactions: [], loaded: false, loading: false }),
 }));
 
-// Public hook — components use this, not the store directly
+/**
+ * Public hook. Reads wallet from Supabase and triggers initial load.
+ */
 export function useWallet() {
+  const supabase = useSupabase();
   const balance = useWalletStore((s) => s.balance);
   const transactions = useWalletStore((s) => s.transactions);
-  const addCoins = useWalletStore((s) => s.addCoins);
-  const deductCoins = useWalletStore((s) => s.deductCoins);
+  const loaded = useWalletStore((s) => s.loaded);
+  const load = useWalletStore((s) => s.load);
 
-  return { balance, transactions, addCoins, deductCoins };
+  useEffect(() => {
+    if (!supabase) return;
+    setWalletSupabase(supabase);
+    // Load once per session
+    if (!loaded) load();
+  }, [supabase, loaded, load]);
+
+  return { balance, transactions, loaded };
 }

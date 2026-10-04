@@ -8,6 +8,7 @@ import { PicksPanel } from './components/PicksPanel';
 import { TurnIndicator } from './components/TurnIndicator';
 import { CoinToss } from './components/CoinToss';
 import { PowersScreen } from './components/PowersScreen';
+import { useMyContestsStore } from '../contests/myContestsStore';
 
 export function DraftRoom() {
   const { matchId } = useParams<{ matchId: string }>();
@@ -26,6 +27,13 @@ export function DraftRoom() {
   const simulateOpponentSubstitute = useDraftStore(
     (s) => s.simulateOpponentSubstitute
   );
+
+  const updateStatus = useMyContestsStore((s) => s.updateStatus);
+
+useEffect(() => {
+  const entryId = sessionStorage.getItem('super7-entry-id');
+  if (entryId) updateStatus(entryId, 'live');
+}, [updateStatus]);
 
   // Init once
   useEffect(() => {

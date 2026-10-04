@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useWallet } from '../features/wallet/hooks/useWallet';
 import { useMatchesStore } from '../features/wallet/matchesStore';
 import { useContestsStore } from '../features/contests/contestsStore';
+import { useMyContestsStore } from '../features/contests/myContestsStore';
 import { StakeTierGrid } from '../features/contests/components/StakeTierGrid';
 import { MatchSelector } from '../features/contests/components/MatchSelector';
 import { CreateContestModal } from '../features/contests/components/CreateContestModal';
@@ -23,6 +24,7 @@ export function ContestsPage() {
   const beginContest = useMatchesStore((s) => s.beginContest);
   const createContest = useContestsStore((s) => s.create);
   const joinContest = useContestsStore((s) => s.join);
+  const createEntry = useMyContestsStore((s) => s.createEntry);
 
   // Auto-open join modal if ?join=CODE
   useEffect(() => {
@@ -34,23 +36,44 @@ export function ContestsPage() {
 
   const canEnter = stake !== null && matchId !== null && balance >= stake;
 
-  const handleQuickMatch = () => {
+  const handleQuickMatch = async () => {
     if (!canEnter || !matchId || !stake) return;
-    const ok = beginContest(matchId, stake);
+
+    const ok = await beginContest(matchId, stake);
     if (!ok) return alert('Not enough coins');
+
+    const entryId = await createEntry({ matchId, stake });
+    if (entryId) sessionStorage.setItem('super7-entry-id', entryId);
+
     navigate(`/draft/${matchId}?stake=${stake}`);
   };
 
-  const handleCreate = (mId: string, s: number) => {
-    const contest = createContest(mId, s);
+  const handleCreate = async (mId: string, s: number) => {
+    const contest = await createContest(mId, s);
     if (!contest) return alert('Not enough coins');
+
+    const entryId = await createEntry({
+      matchId: mId,
+      stake: s,
+      code: contest.code,
+    });
+    if (entryId) sessionStorage.setItem('super7-entry-id', entryId);
+
     setCreateOpen(false);
     navigate(`/contest/${contest.code}`);
   };
 
-  const handleJoin = (code: string) => {
-    const contest = joinContest(code);
+  const handleJoin = async (code: string) => {
+    const contest = await joinContest(code);
     if (!contest) return alert('Not enough coins or invalid code');
+
+    const entryId = await createEntry({
+      matchId: contest.matchId,
+      stake: contest.stake,
+      code: contest.code,
+    });
+    if (entryId) sessionStorage.setItem('super7-entry-id', entryId);
+
     setJoinOpen(false);
     navigate(`/contest/${contest.code}`);
   };

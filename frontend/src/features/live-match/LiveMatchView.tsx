@@ -12,6 +12,8 @@ import { HeadToHeadBar } from './components/HeadToHeadBar';
 import { PlayerPointsRow } from './components/PlayerPointsRow';
 import { EventTicker } from './components/EventTicker';
 import { useMatchesStore } from '../wallet/matchesStore';
+import { useMyContestsStore } from '../contests/myContestsStore';
+  
 
 
 export function LiveMatchView() {
@@ -19,6 +21,8 @@ export function LiveMatchView() {
   const stake = Number(search.get('stake') ?? 200);
   const navigate = useNavigate();
   const pageRef = useRef<HTMLDivElement>(null);
+  const completeEntry = useMyContestsStore((s) => s.completeEntry);
+  const updateStatus = useMyContestsStore((s) => s.updateStatus);
 
   const players = useDraftStore((s) => s.players);
   const myPicks = useDraftStore((s) => s.myPicks);
@@ -39,39 +43,15 @@ export function LiveMatchView() {
   const applyEvent = useLiveMatchStore((s) => s.applyEvent);
   const complete = useLiveMatchStore((s) => s.complete);
 
+
+
+// Flip entry status to 'live' when the live match view opens
 useEffect(() => {
-  const battingSquad = players.filter((p) => p.team === 'IND');
-  const bowlingSquad = players.filter((p) => p.team === 'AUS');
-  resetMockMatch(battingSquad, bowlingSquad);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, []);
+  const entryId = sessionStorage.getItem('super7-entry-id');
+  if (entryId) updateStatus(entryId, 'live');
+}, [updateStatus]);
 
-// 2. Ball stream
-useEffect(() => {
-  if (isComplete) return;
 
-  const interval = setInterval(() => {
-    const state = useLiveMatchStore.getState();
-    const { score: s } = state;
-
-    if (s.balls >= 120 || s.wickets >= 10) {
-      complete();
-      return;
-    }
-
-    const over = Math.floor(s.balls / 6);
-    const ballInOver = (s.balls % 6) + 1;
-
-    const event = generateBallEvent(over, ballInOver);
-    applyEvent(event);
-
-    if (ballInOver === 6) {
-      rotateStrikeOnOverEnd();
-    }
-  }, 2000);
-
-  return () => clearInterval(interval);
-}, [isComplete, applyEvent, complete]);
 
   // Entrance animation
   useGSAP(() => {
@@ -162,7 +142,7 @@ useEffect(() => {
   const iWon = myPoints > opponentPoints;
   const tied = myPoints === opponentPoints;
 
-  console.log('myPicks:', myPicks, 'opponentPicks:', opponentPicks);
+  
 
   const settleContest = useMatchesStore((s) => s.settleContest);
 const activeContest = useMatchesStore((s) => s.active);
@@ -174,30 +154,44 @@ const activeContest = useMatchesStore((s) => s.active);
   const result: 'won' | 'lost' | 'tied' =
     myPoints > opponentPoints ? 'won' : myPoints < opponentPoints ? 'lost' : 'tied';
 
-  settleContest({
-    result,
-    myPoints,
-    opponentPoints,
-    details: {
-      myPicks,
-      opponentPicks,
-      mySubstitute,
-      opponentSubstitute,
-      myCaptain,
-      myViceCaptain,
-      myPoison,
-      opponentCaptain,
-      opponentViceCaptain,
-      opponentPoison,
-      basePoints: { ...totalPoints },
-    },
-  });
+  (async () => {
+    try {
+      await settleContest({
+        result,
+        myPoints,
+        opponentPoints,
+        details: {
+          myPicks,
+          opponentPicks,
+          mySubstitute,
+          opponentSubstitute,
+          myCaptain,
+          myViceCaptain,
+          myPoison,
+          opponentCaptain,
+          opponentViceCaptain,
+          opponentPoison,
+          basePoints: { ...totalPoints },
+        },
+      });
+
+      // Mark the contest entry as completed
+      const entryId = sessionStorage.getItem('super7-entry-id');
+      if (entryId) {
+        await completeEntry(entryId, result, myPoints, opponentPoints);
+        sessionStorage.removeItem('super7-entry-id');
+      }
+    } catch (err) {
+      console.error('settleContest failed:', err);
+    }
+  })();
 }, [
   isComplete,
   activeContest,
   myPoints,
   opponentPoints,
   settleContest,
+  completeEntry,
   myPicks,
   opponentPicks,
   mySubstitute,

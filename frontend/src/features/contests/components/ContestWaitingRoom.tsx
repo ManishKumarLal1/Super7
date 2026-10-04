@@ -70,10 +70,10 @@ export function ContestWaitingRoom() {
     navigate(`/draft/${active.matchId}?stake=${active.stake}&code=${active.code}`);
   };
 
-  const handleLeave = () => {
-    leave();
-    navigate('/contests');
-  };
+ const handleLeave = async () => {
+  await leave();
+  navigate('/contests');
+};
 
   return (
     <div className="min-h-screen bg-black pt-32 pb-24">

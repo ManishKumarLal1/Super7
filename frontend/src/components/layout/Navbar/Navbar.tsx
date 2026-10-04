@@ -69,7 +69,7 @@ export function Navbar() {
             <NavLink to="/contests">Contests</NavLink>
             <NavLink to="/leaderboard">Leaderboard</NavLink>
             <NavLink to="/friends">Friends</NavLink>
-            <NavLink to="/profile">Profile</NavLink>
+            <NavLink to="/my-contests">My Contests</NavLink>
           </div>
 
           <div className="flex items-center gap-3">

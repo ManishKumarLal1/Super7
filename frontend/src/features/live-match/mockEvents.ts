@@ -20,8 +20,7 @@ let state: MatchState = {
   wicketsDown: 0,
 };
 
-let eventCounter = 0;
-const uid = () => `evt-${++eventCounter}`;
+const uid = () => `evt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 export function resetMockMatch(
   battingSquad: DraftPlayer[],
@@ -45,7 +44,6 @@ export function resetMockMatch(
     bowlingOrder: bowlOrder,
     wicketsDown: 0,
   };
-  eventCounter = 0;
 }
 
 export function generateBallEvent(over: number, ballInOver: number): BallEvent {

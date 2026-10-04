@@ -1,15 +1,15 @@
-import { useEffect, useState } from 'react';
-import { useFriendsStore } from '../features/friends/friendsStore';
+import { useState } from 'react';
+import {
+  useFriendsStore,
+  useFriends,
+} from '../features/friends/friendsStore';
 import { AddFriendModal } from '../features/friends/components/AddFriendModal';
 import { FriendCard } from '../features/friends/components/FriendCard';
 import { InviteModal } from '../features/friends/components/InviteModal';
 import type { Friend } from '../features/friends/friendsStore';
 
 export function FriendsPage() {
-  const myCode = useFriendsStore((s) => s.myCode);
-  const friends = useFriendsStore((s) => s.friends);
-  const requests = useFriendsStore((s) => s.requests);
-  const ensureCode = useFriendsStore((s) => s.ensureCode);
+  const { myCode, friends, requests, loaded } = useFriends();
   const sendRequest = useFriendsStore((s) => s.sendRequest);
   const acceptRequest = useFriendsStore((s) => s.acceptRequest);
   const declineRequest = useFriendsStore((s) => s.declineRequest);
@@ -18,14 +18,27 @@ export function FriendsPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [inviteFriend, setInviteFriend] = useState<Friend | null>(null);
 
-  useEffect(() => {
-    ensureCode();
-  }, [ensureCode]);
-
   const copyCode = () => {
-    if (myCode) {
-      navigator.clipboard.writeText(myCode);
+    if (myCode) navigator.clipboard.writeText(myCode);
+  };
+
+  const handleSendRequest = async (value: string) => {
+    const ok = await sendRequest(value);
+    if (!ok) {
+      alert("Couldn't find that player. Check the code or name and try again.");
     }
+  };
+
+  const handleAccept = async (id: string) => {
+    await acceptRequest(id);
+  };
+
+  const handleDecline = async (id: string) => {
+    await declineRequest(id);
+  };
+
+  const handleRemove = async (id: string) => {
+    await removeFriend(id);
   };
 
   return (
@@ -44,7 +57,7 @@ export function FriendsPage() {
           </p>
         </div>
 
-        {/* Your code */}
+        {/* Your friend code */}
         <div className="mb-8 rounded-3xl border border-white/10 bg-gradient-to-br from-emerald-400/[0.08] to-transparent p-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
@@ -60,7 +73,8 @@ export function FriendsPage() {
             </div>
             <button
               onClick={copyCode}
-              className="rounded-full border border-white/10 bg-white/[0.04] px-5 py-2.5 text-xs font-semibold text-white transition hover:bg-white/[0.08]"
+              disabled={!myCode}
+              className="rounded-full border border-white/10 bg-white/[0.04] px-5 py-2.5 text-xs font-semibold text-white transition hover:bg-white/[0.08] disabled:opacity-40"
             >
               Copy code
             </button>
@@ -93,35 +107,32 @@ export function FriendsPage() {
                   className="flex items-center gap-4 rounded-2xl border border-amber-400/20 bg-amber-400/[0.04] p-4"
                 >
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-400/20 text-xs font-bold text-amber-300">
-                    {r.fromName.split(' ').map((w) => w[0]).join('').slice(0, 2)}
+                    {r.fromName
+                      .split(' ')
+                      .map((w) => w[0])
+                      .join('')
+                      .slice(0, 2)}
                   </div>
                   <div className="flex-1">
                     <div className="text-sm font-medium text-white">
                       {r.fromName}
                     </div>
                     <div className="text-[10px] uppercase tracking-widest text-white/40">
-                      {r.direction === 'outgoing' ? 'Sending…' : 'Wants to be friends'}
+                      Wants to be friends
                     </div>
                   </div>
-                  {r.direction === 'incoming' && (
-                    <>
-                      <button
-                        onClick={() => acceptRequest(r.id)}
-                        className="rounded-full bg-emerald-400 px-4 py-2 text-xs font-semibold text-black"
-                      >
-                        Accept
-                      </button>
-                      <button
-                        onClick={() => declineRequest(r.id)}
-                        className="rounded-full border border-white/10 px-4 py-2 text-xs font-semibold text-white/60"
-                      >
-                        Decline
-                      </button>
-                    </>
-                  )}
-                  {r.direction === 'outgoing' && (
-                    <span className="text-xs text-amber-300">Pending…</span>
-                  )}
+                  <button
+                    onClick={() => handleAccept(r.id)}
+                    className="rounded-full bg-emerald-400 px-4 py-2 text-xs font-semibold text-black transition hover:bg-emerald-300"
+                  >
+                    Accept
+                  </button>
+                  <button
+                    onClick={() => handleDecline(r.id)}
+                    className="rounded-full border border-white/10 px-4 py-2 text-xs font-semibold text-white/60 transition hover:bg-white/5"
+                  >
+                    Decline
+                  </button>
                 </div>
               ))}
             </div>
@@ -129,7 +140,11 @@ export function FriendsPage() {
         )}
 
         {/* Friends list */}
-        {friends.length === 0 ? (
+        {!loaded ? (
+          <div className="py-16 text-center text-sm text-white/40">
+            Loading friends…
+          </div>
+        ) : friends.length === 0 ? (
           <div className="rounded-3xl border border-dashed border-white/10 bg-white/[0.01] p-16 text-center">
             <div className="text-lg font-semibold text-white">No friends yet</div>
             <p className="mt-2 text-sm text-white/50">
@@ -143,7 +158,7 @@ export function FriendsPage() {
                 key={friend.id}
                 friend={friend}
                 onInvite={() => setInviteFriend(friend)}
-                onRemove={() => removeFriend(friend.id)}
+                onRemove={() => handleRemove(friend.id)}
               />
             ))}
           </div>
@@ -153,7 +168,7 @@ export function FriendsPage() {
       <AddFriendModal
         open={addOpen}
         onClose={() => setAddOpen(false)}
-        onSubmit={sendRequest}
+        onSubmit={handleSendRequest}
       />
       <InviteModal friend={inviteFriend} onClose={() => setInviteFriend(null)} />
     </div>

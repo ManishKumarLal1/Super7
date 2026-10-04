@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { useWalletStore } from './hooks/useWallet';
+import { useWalletStore, getWalletSupabase } from './hooks/useWallet';
 
 export type MatchResult = 'won' | 'lost' | 'tied';
 
@@ -35,19 +35,19 @@ type ActiveContest = {
   startedAt: number;
 } | null;
 
-
 type SettleInput = {
   result: MatchResult;
   myPoints: number;
   opponentPoints: number;
   details?: CompletedMatch['details'];
 };
+
 type MatchesState = {
   active: ActiveContest;
   history: CompletedMatch[];
-  beginContest: (matchId: string, stake: number) => boolean;
-  settleContest: (input: SettleInput) => void;
-  abandonContest: () => void;
+  beginContest: (matchId: string, stake: number) => Promise<boolean>;
+  settleContest: (input: SettleInput) => Promise<void>;
+  abandonContest: () => Promise<void>;
   reset: () => void;
 };
 
@@ -57,15 +57,19 @@ export const useMatchesStore = create<MatchesState>()(
       active: null,
       history: [],
 
-      beginContest: (matchId, stake) => {
-        // Guard against double-entry
+      beginContest: async (matchId, stake) => {
         const existing = get().active;
         if (existing && existing.matchId === matchId) return true;
 
-        // Deduct stake via wallet
-        const ok = useWalletStore
+        if (!getWalletSupabase()) {
+          console.error('Supabase not ready');
+          return false;
+        }
+
+        // Deduct stake via Supabase RPC
+        const ok = await useWalletStore
           .getState()
-          .deductCoins(stake, `Entry: ${matchId}`, 'escrow');
+          .deduct(stake, `Entry: ${matchId}`, 'escrow');
         if (!ok) return false;
 
         set({
@@ -79,51 +83,50 @@ export const useMatchesStore = create<MatchesState>()(
         return true;
       },
 
-      settleContest: ({ result, myPoints, opponentPoints, details }) => {
-  const { active, history } = get();
-  if (!active) return;
+      settleContest: async ({ result, myPoints, opponentPoints, details }) => {
+        const { active, history } = get();
+        if (!active) return;
 
-  const { stake, matchId, sessionId } = active;
-  let payout = 0;
+        const { stake, matchId, sessionId } = active;
+        let payout = 0;
 
-  if (result === 'won') {
-    payout = stake * 2;
-    useWalletStore
-      .getState()
-      .addCoins(payout, `Won: ${matchId}`, 'payout');
-  } else if (result === 'tied') {
-    payout = stake;
-    useWalletStore
-      .getState()
-      .addCoins(payout, `Refund (tied): ${matchId}`, 'refund');
-  }
+        if (result === 'won') {
+          payout = stake * 2;
+          await useWalletStore
+            .getState()
+            .credit(payout, `Won: ${matchId}`, 'payout');
+        } else if (result === 'tied') {
+          payout = stake;
+          await useWalletStore
+            .getState()
+            .credit(payout, `Refund (tied): ${matchId}`, 'refund');
+        }
 
-  set({
-    active: null,
-    history: [
-      {
-        id: sessionId,
-        matchId,
-        stake,
-        result,
-        myPoints,
-        opponentPoints,
-        payout,
-        timestamp: Date.now(),
-        details,
+        set({
+          active: null,
+          history: [
+            {
+              id: sessionId,
+              matchId,
+              stake,
+              result,
+              myPoints,
+              opponentPoints,
+              payout,
+              timestamp: Date.now(),
+              details,
+            },
+            ...history,
+          ].slice(0, 100),
+        });
       },
-      ...history,
-    ].slice(0, 100),
-  });
-},
 
-      abandonContest: () => {
+      abandonContest: async () => {
         const { active } = get();
         if (!active) return;
-        // Refund the stake
-        useWalletStore
+        await useWalletStore
           .getState()
-          .addCoins(active.stake, 'Refund: abandoned', 'refund');
+          .credit(active.stake, 'Refund: abandoned', 'refund');
         set({ active: null });
       },
 
@@ -138,6 +141,7 @@ export const useMatchesStore = create<MatchesState>()(
     }
   )
 );
+
 export function findMatchById(id: string): CompletedMatch | null {
   return useMatchesStore.getState().history.find((m) => m.id === id) ?? null;
 }

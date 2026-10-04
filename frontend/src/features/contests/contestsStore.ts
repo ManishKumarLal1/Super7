@@ -27,9 +27,9 @@ export type Contest = {
 
 type ContestsState = {
   active: Contest | null;
-  create: (matchId: string, stake: number) => Contest | null;
-  join: (code: string) => Contest | null;
-  leave: () => void;
+  create: (matchId: string, stake: number) => Promise<Contest | null>;
+  join: (code: string) => Promise<Contest | null>;
+  leave: () => Promise<void>;
   reset: () => void;
 };
 
@@ -49,12 +49,12 @@ export const useContestsStore = create<ContestsState>()(
     (set, get) => ({
       active: null,
 
-      create: (matchId, stake) => {
+      create: async (matchId, stake) => {
         // Deduct stake if not free
         if (stake > 0) {
-          const ok = useWalletStore
+          const ok = await useWalletStore
             .getState()
-            .deductCoins(stake, `Create contest: ${matchId}`, 'escrow');
+            .deduct(stake, `Create contest: ${matchId}`, 'escrow');
           if (!ok) return null;
         }
 
@@ -82,7 +82,7 @@ export const useContestsStore = create<ContestsState>()(
         return contest;
       },
 
-      join: (code) => {
+      join: async (code) => {
         const upper = code.trim().toUpperCase();
 
         // If joining your own active contest, no-op
@@ -100,13 +100,12 @@ export const useContestsStore = create<ContestsState>()(
         const opponent =
           fakeOpponentNames[Math.floor(Math.random() * fakeOpponentNames.length)];
 
-        // Random stake simulation (could come from server)
         const stake = 200;
 
         // Deduct entry stake
-        const ok = useWalletStore
+        const ok = await useWalletStore
           .getState()
-          .deductCoins(stake, `Join contest: ${upper}`, 'escrow');
+          .deduct(stake, `Join contest: ${upper}`, 'escrow');
         if (!ok) return null;
 
         const contest: Contest = {
@@ -144,12 +143,12 @@ export const useContestsStore = create<ContestsState>()(
         return contest;
       },
 
-      leave: () => {
+      leave: async () => {
         const { active } = get();
         if (active && active.stake > 0) {
-          useWalletStore
+          await useWalletStore
             .getState()
-            .addCoins(active.stake, 'Refund: left contest', 'refund');
+            .credit(active.stake, 'Refund: left contest', 'refund');
         }
         set({ active: null });
       },

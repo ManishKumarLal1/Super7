@@ -49,11 +49,11 @@ export function InviteModal({ friend, onClose }: Props) {
 
   const canInvite = matchId !== null && stake !== null && balance >= stake;
 
-  const handleInvite = () => {
+  const handleInvite = async () => {
     if (!canInvite || !matchId || !stake) return;
 
     // 1. Create the contest (deducts stake, generates code)
-    const contest = createContest(matchId, stake);
+    const contest = await createContest(matchId, stake);
     if (!contest) {
       alert('Not enough coins');
       return;
