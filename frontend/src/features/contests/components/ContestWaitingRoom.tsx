@@ -1,44 +1,20 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useContestsStore } from '../contestsStore';
 import { useChatStore } from '../../chat/chatStore';
 import { useFriendsStore } from '../../friends/friendsStore';
+import { useActiveContest, useContestsStore } from '../contestsStore';
 
 export function ContestWaitingRoom() {
-  const active = useContestsStore((s) => s.active);
-  const leave = useContestsStore((s) => s.leave);
+  const active = useActiveContest();
+const leave = useContestsStore((s) => s.leave);
   const friends = useFriendsStore((s) => s.friends);
   const sendMessage = useChatStore((s) => s.sendMessage);
   const navigate = useNavigate();
   const [copied, setCopied] = useState<'code' | 'link' | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
 
-  // Simulate opponent joining after 8s if creator and waiting
-  useEffect(() => {
-    if (!active || active.role !== 'creator' || active.status !== 'waiting') return;
 
-    const t = setTimeout(() => {
-      // In real app: WebSocket event
-      useContestsStore.setState({
-        active: {
-          ...active,
-          status: 'ready',
-          players: [
-            ...active.players,
-            {
-              id: 'opponent',
-              name: 'Arjun Mehta',
-              avatarInitials: 'AM',
-              isMe: false,
-              joinedAt: Date.now(),
-            },
-          ],
-        },
-      });
-    }, 8000);
-
-    return () => clearTimeout(t);
-  }, [active]);
+  
 
   if (!active) return null;
 

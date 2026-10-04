@@ -1,7 +1,11 @@
-import { useState } from 'react';
-import { useChatStore } from '../chatStore';
-import { useFriendsStore } from '../../friends/friendsStore';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import {
+  useChatStore,
+  useChat,
+  threadIdFor,
+} from '../chatStore';
+import { useFriendsStore, useFriends } from '../../friends/friendsStore';
 
 type Props = {
   open: boolean;
@@ -9,40 +13,65 @@ type Props = {
 };
 
 export function ChatPanel({ open, onClose }: Props) {
-  const friends = useFriendsStore((s) => s.friends);
-  const messages = useChatStore((s) => s.messages);
+  const { friends } = useFriends();
+  const { messages } = useChat();
   const sendMessage = useChatStore((s) => s.sendMessage);
   const markThreadRead = useChatStore((s) => s.markThreadRead);
-  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const setActiveThread = useChatStore((s) => s.setActiveThread);
+  const activeThreadId = useChatStore((s) => s.activeThreadId);
+  const resetActiveThread = useChatStore((s) => s.setActiveThread);
+
   const [draft, setDraft] = useState('');
+
+  const me = (window as any).Clerk?.user?.id;
+
+  // Reset active thread when panel closes
+  useEffect(() => {
+    if (!open) {
+      resetActiveThread(null);
+      setDraft('');
+    }
+  }, [open, resetActiveThread]);
 
   if (!open) return null;
 
-  const threads = friends.map((f) => ({
-    friend: f,
-    lastMessage: [...messages]
-      .reverse()
-      .find((m) => m.threadId === f.id),
-    unread: messages.filter(
-      (m) => m.threadId === f.id && !m.read && m.senderId !== 'me'
-    ).length,
-  }));
+  const getThreadId = (friendId: string) => threadIdFor(me, friendId);
 
-  const activeFriend = friends.find((f) => f.id === activeThreadId) ?? null;
+  // Derive active friend from the active thread ID
+  const activeFriend =
+    friends.find((f) => getThreadId(f.id) === activeThreadId) ?? null;
+
+  const threads = friends.map((f) => {
+    const tId = getThreadId(f.id);
+    const friendMessages = messages
+      .filter((m) => m.threadId === tId)
+      .sort((a, b) => a.timestamp - b.timestamp);
+    const lastMessage = friendMessages[friendMessages.length - 1];
+    const unread = friendMessages.filter(
+      (m) => !m.read && m.senderId !== me
+    ).length;
+    return { friend: f, lastMessage, unread };
+  });
+
   const threadMessages = activeThreadId
     ? messages
         .filter((m) => m.threadId === activeThreadId)
         .sort((a, b) => a.timestamp - b.timestamp)
     : [];
 
-  const handleOpenThread = (id: string) => {
-    setActiveThreadId(id);
-    markThreadRead(id);
+  const handleOpenThread = (friendId: string) => {
+    const tId = getThreadId(friendId);
+    setActiveThread(tId);
+    markThreadRead(tId);
   };
 
-  const handleSend = () => {
+  const handleCloseThread = () => {
+    setActiveThread(null);
+  };
+
+  const handleSend = async () => {
     if (!draft.trim() || !activeThreadId) return;
-    sendMessage(activeThreadId, draft.trim());
+    await sendMessage(activeThreadId, draft.trim());
     setDraft('');
   };
 
@@ -57,26 +86,26 @@ export function ChatPanel({ open, onClose }: Props) {
         <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
           <div className="flex items-center gap-3">
             {activeFriend && (
-  <button
-    onClick={() => setActiveThreadId(null)}
-    className="text-white/50 hover:text-white"
-  >
-    ←
-  </button>
-)}
-{activeFriend ? (
-  <Link
-    to={`/user/${activeFriend.id}`}
-    onClick={onClose}
-    className="text-sm font-semibold uppercase tracking-[0.2em] text-white transition hover:text-emerald-400"
-  >
-    {activeFriend.name}
-  </Link>
-) : (
-  <div className="text-sm font-semibold uppercase tracking-[0.2em] text-white">
-    Messages
-  </div>
-)}
+              <button
+                onClick={handleCloseThread}
+                className="text-white/50 hover:text-white"
+              >
+                ←
+              </button>
+            )}
+            {activeFriend ? (
+              <Link
+                to={`/user/${activeFriend.id}`}
+                onClick={onClose}
+                className="text-sm font-semibold uppercase tracking-[0.2em] text-white transition hover:text-emerald-400"
+              >
+                {activeFriend.name}
+              </Link>
+            ) : (
+              <div className="text-sm font-semibold uppercase tracking-[0.2em] text-white">
+                Messages
+              </div>
+            )}
           </div>
           <button
             onClick={onClose}
@@ -131,7 +160,7 @@ export function ChatPanel({ open, onClose }: Props) {
                 </div>
               )}
               {threadMessages.map((m) => {
-                const mine = m.senderId === 'me';
+                const mine = m.senderId === me;
                 return (
                   <div
                     key={m.id}

@@ -25,13 +25,17 @@ import { MyContestsPage } from './pages/MyContestsPage';
 import { useLiveMatchEngine } from './features/live-match/useLiveMatchEngine';
 import { MatchReportPage } from './pages/MatchReportPage'
 import { useFriends } from './features/friends/friendsStore';
+import { useChat } from './features/chat/chatStore';
+import {useActiveContest, useContestsInit, } from './features/contests/contestsStore';
+
 
 function App() {
   useSmoothScroll();
   useMyContests();
   useLiveMatchEngine();
   useFriends();
-
+  useChat();
+  useContestsInit();
   return (
     <>
       <Navbar />

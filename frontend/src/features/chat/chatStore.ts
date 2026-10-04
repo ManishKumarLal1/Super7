@@ -1,10 +1,12 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { useEffect } from 'react';
+import { useSupabase } from '../../lib/useSupabase';
+import { useShallow } from 'zustand/react/shallow';
 
 export type ChatMessage = {
   id: string;
-  threadId: string;         // friend's id
-  senderId: 'me' | 'system' | string;
+  threadId: string;
+  senderId: string;
   senderName: string;
   text: string;
   timestamp: number;
@@ -15,67 +17,147 @@ export type ChatMessage = {
   };
 };
 
+let _supabase: any = null;
+
 type ChatState = {
   messages: ChatMessage[];
   chatOpen: boolean;
   activeThreadId: string | null;
+  loading: boolean;
+  loaded: boolean;
 
+  load: () => Promise<void>;
   sendMessage: (
     threadId: string,
     text: string,
     metadata?: ChatMessage['metadata']
-  ) => void;
-  markThreadRead: (threadId: string) => void;
+  ) => Promise<void>;
+  markThreadRead: (threadId: string) => Promise<void>;
   openChat: (threadId?: string) => void;
   closeChat: () => void;
+  setActiveThread: (threadId: string | null) => void;
   reset: () => void;
 };
 
-export const useChatStore = create<ChatState>()(
-  persist(
-    (set, get) => ({
+export function threadIdFor(userA: string, userB: string): string {
+  const [a, b] = [userA, userB].sort();
+  return `${a}:${b}`;
+}
+
+export const useChatStore = create<ChatState>((set, get) => ({
+  messages: [],
+  chatOpen: false,
+  activeThreadId: null,
+  loading: false,
+  loaded: false,
+
+  load: async () => {
+    if (!_supabase) return;
+    const me = (window as any).Clerk?.user?.id;
+    if (!me) return;
+
+    set({ loading: true });
+
+    const { data, error } = await _supabase
+      .from('messages')
+      .select('*')
+      .order('created_at', { ascending: true })
+      .limit(500);
+
+    if (error) {
+      console.error('messages load error:', error);
+      set({ loading: false, loaded: true });
+      return;
+    }
+
+    const messages: ChatMessage[] = (data ?? []).map((row: any) => ({
+      id: row.id,
+      threadId: row.thread_id,
+      senderId: row.sender_id,
+      senderName: row.sender_id === me ? 'You' : 'Them',
+      text: row.text,
+      timestamp: new Date(row.created_at).getTime(),
+      read: row.read,
+      metadata: row.metadata ?? undefined,
+    }));
+
+    set({ messages, loading: false, loaded: true });
+  },
+
+  sendMessage: async (threadId, text, metadata) => {
+    if (!_supabase) return;
+    const me = (window as any).Clerk?.user?.id;
+    if (!me) return;
+
+    const { error } = await _supabase.from('messages').insert({
+      thread_id: threadId,
+      sender_id: me,
+      text,
+      metadata: metadata ?? null,
+      read: false,
+    });
+
+    if (error) {
+      console.error('sendMessage error:', error);
+      return;
+    }
+
+    await get().load();
+  },
+
+  markThreadRead: async (threadId) => {
+    if (!_supabase) return;
+    const me = (window as any).Clerk?.user?.id;
+    if (!me) return;
+
+    await _supabase
+      .from('messages')
+      .update({ read: true })
+      .eq('thread_id', threadId)
+      .neq('sender_id', me)
+      .eq('read', false);
+
+    // Update local state immediately
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.threadId === threadId ? { ...m, read: true } : m
+      ),
+    }));
+  },
+
+  openChat: (threadId) =>
+    set({ chatOpen: true, activeThreadId: threadId ?? null }),
+
+  closeChat: () => set({ chatOpen: false, activeThreadId: null }),
+
+  setActiveThread: (threadId) => set({ activeThreadId: threadId }),
+
+  reset: () =>
+    set({
       messages: [],
       chatOpen: false,
       activeThreadId: null,
-
-      sendMessage: (threadId, text, metadata) => {
-        const msg: ChatMessage = {
-          id: crypto.randomUUID(),
-          threadId,
-          senderId: 'me',
-          senderName: 'You',
-          text,
-          timestamp: Date.now(),
-          read: true,
-          metadata,
-        };
-        set((s) => ({ messages: [...s.messages, msg] }));
-      },
-
-      markThreadRead: (threadId) => {
-        set((s) => ({
-          messages: s.messages.map((m) =>
-            m.threadId === threadId ? { ...m, read: true } : m
-          ),
-        }));
-      },
-
-      openChat: (threadId) =>
-        set({
-          chatOpen: true,
-          activeThreadId: threadId ?? null,
-        }),
-
-      closeChat: () => set({ chatOpen: false, activeThreadId: null }),
-
-      reset: () =>
-        set({ messages: [], chatOpen: false, activeThreadId: null }),
+      loaded: false,
     }),
-    {
-      name: 'super7-chat',
-      partialize: (s) => ({ messages: s.messages }),
-      // Note: chatOpen and activeThreadId are NOT persisted
-      // — they're UI state that should reset on refresh
-    }
-  )
-);
+}));
+
+export function useChat() {
+  const supabase = useSupabase();
+  const loaded = useChatStore((s) => s.loaded);
+  const load = useChatStore((s) => s.load);
+
+  useEffect(() => {
+    if (!supabase) return;
+    _supabase = supabase;
+    if (!loaded) load();
+  }, [supabase, loaded, load]);
+
+  return useChatStore(
+    useShallow((s) => ({
+      messages: s.messages,
+      chatOpen: s.chatOpen,
+      activeThreadId: s.activeThreadId,
+      loaded: s.loaded,
+    }))
+  );
+}

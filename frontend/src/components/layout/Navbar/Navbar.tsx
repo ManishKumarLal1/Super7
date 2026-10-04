@@ -23,9 +23,10 @@ export function Navbar() {
   const chatOpen = useChatStore((s) => s.chatOpen);
   const openChat = useChatStore((s) => s.openChat);
   const closeChat = useChatStore((s) => s.closeChat);
-  const unreadMessages = useChatStore(
-    (s) => s.messages.filter((m) => !m.read && m.senderId !== 'me').length
-  );
+  const me = (window as any).Clerk?.user?.id;
+const unreadMessages = useChatStore((s) =>
+  s.messages.filter((m) => !m.read && m.senderId !== me).length
+);
 
   useGSAP(() => {
     if (!navRef.current) return;
