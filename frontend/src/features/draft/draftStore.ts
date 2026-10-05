@@ -1,10 +1,10 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 import { MOCK_SQUAD, type DraftPlayer } from './mockSquad';
 import { usePowersStore } from './powersStore';
 
 export type Side = 'me' | 'opponent';
 export type DraftPhase =
+  | 'lobby'
   | 'toss'
   | 'drafting'
   | 'substitute'
@@ -34,179 +34,192 @@ type DraftState = {
   simulateOpponentPick: () => void;
   pickSubstitute: (playerId: string) => void;
   simulateOpponentSubstitute: () => void;
+  recordToss: (firstPickerId: string) => void;
+  applyPickFromServer: (pick: {
+    userId: string;
+    playerId: string;
+    pickIndex: number;
+  }) => void;
   reset: () => void;
 };
 
-export const useDraftStore = create<DraftState>()(
-  persist(
-    (set, get) => ({
-      matchId: null,
-      stake: 0,
-      players: MOCK_SQUAD,
-      phase: 'toss',
+// Module-level supabase ref — set by useDraftSync
+let _supabase: any = null;
+export function setDraftSupabase(client: any) {
+  _supabase = client;
+}
+export function getDraftSupabase() {
+  return _supabase;
+}
 
+export const useDraftStore = create<DraftState>()((set, get) => ({
+  matchId: null,
+  stake: 0,
+  players: MOCK_SQUAD,
+  phase: 'lobby',
+
+  firstPicker: null,
+  tossResult: null,
+
+  pickIndex: 0,
+  myPicks: [],
+  opponentPicks: [],
+
+  mySubstitute: null,
+  opponentSubstitute: null,
+  substituteTurn: null,
+
+  initDraft: (matchId, stake) => {
+    usePowersStore.getState().reset();
+
+    set({
+      matchId,
+      stake,
+      players: MOCK_SQUAD,
+      phase: 'lobby',
       firstPicker: null,
       tossResult: null,
-
       pickIndex: 0,
       myPicks: [],
       opponentPicks: [],
-
       mySubstitute: null,
       opponentSubstitute: null,
       substituteTurn: null,
+    });
+  },
 
-      initDraft: (matchId, stake) => {
-        // 🔑 Reset powers so stale C/VC/Poison don't carry over
-        usePowersStore.getState().reset();
+  tossCoin: () => {},
 
-        set({
-          matchId,
-          stake,
-          players: MOCK_SQUAD,
-          phase: 'toss',
-          firstPicker: null,
-          tossResult: null,
-          pickIndex: 0,
-          myPicks: [],
-          opponentPicks: [],
-          mySubstitute: null,
-          opponentSubstitute: null,
-          substituteTurn: null,
-        });
-      },
+  pickPlayer: (playerId) => {
+    const { phase, myPicks, opponentPicks, firstPicker } = get();
 
-      tossCoin: () => {
-        const iWon = Math.random() < 0.5;
-        set({
-          firstPicker: iWon ? 'me' : 'opponent',
-          tossResult: iWon ? 'won' : 'lost',
-          phase: 'drafting',
-          pickIndex: 0,
-        });
-      },
+    if (!firstPicker) return;
+    if (phase !== 'drafting') return;
 
-      pickPlayer: (playerId) => {
-        const { phase, pickIndex, myPicks, opponentPicks, firstPicker } = get();
-        if (phase !== 'drafting') return;
-        if (pickIndex >= 14) return;
-        if (currentSide(pickIndex, firstPicker) !== 'me') return;
-        if (myPicks.includes(playerId) || opponentPicks.includes(playerId))
-          return;
+    const totalBefore = myPicks.length + opponentPicks.length;
+    if (totalBefore >= 14) return;
+    if (currentSide(totalBefore, firstPicker) !== 'me') return;
+    if (myPicks.includes(playerId) || opponentPicks.includes(playerId)) return;
 
-        const nextMyPicks = [...myPicks, playerId];
-        const nextIndex = pickIndex + 1;
+    const nextMyPicks = [...myPicks, playerId];
+    const totalAfter = nextMyPicks.length + opponentPicks.length;
 
-        set({
-          myPicks: nextMyPicks,
-          pickIndex: nextIndex,
-          phase: nextIndex >= 14 ? 'substitute' : 'drafting',
-          substituteTurn: nextIndex >= 14 ? 'me' : null,
-        });
-      },
+    set({
+      myPicks: nextMyPicks,
+      pickIndex: totalAfter,
+      phase: totalAfter >= 14 ? 'substitute' : 'drafting',
+      substituteTurn: totalAfter >= 14 ? 'me' : null,
+    });
+  },
 
-      simulateOpponentPick: () => {
-        const { phase, pickIndex, myPicks, opponentPicks, players, firstPicker } =
-          get();
-        if (phase !== 'drafting') return;
-        if (pickIndex >= 14) return;
-        if (currentSide(pickIndex, firstPicker) !== 'opponent') return;
+  simulateOpponentPick: () => {},
 
-        const taken = new Set([...myPicks, ...opponentPicks]);
-        const available = players.filter((p) => !taken.has(p.id));
-        if (available.length === 0) return;
+  pickSubstitute: (playerId) => {
+    const { phase, myPicks, opponentPicks, substituteTurn } = get();
+    if (phase !== 'substitute') return;
+    if (substituteTurn !== 'me') return;
+    if (myPicks.includes(playerId) || opponentPicks.includes(playerId)) return;
 
-        const weighted = available.map((p) => ({
-          player: p,
-          weight: (p.role === 'BAT' || p.role === 'AR' ? 2 : 1) * p.credits,
-        }));
-        const total = weighted.reduce((sum, w) => sum + w.weight, 0);
-        let r = Math.random() * total;
-        let chosen = weighted[0].player;
-        for (const w of weighted) {
-          r -= w.weight;
-          if (r <= 0) {
-            chosen = w.player;
-            break;
-          }
-        }
+    set({ mySubstitute: playerId, substituteTurn: 'opponent' });
+  },
 
-        const nextOpponentPicks = [...opponentPicks, chosen.id];
-        const nextIndex = pickIndex + 1;
+  simulateOpponentSubstitute: () => {},
 
-        set({
-          opponentPicks: nextOpponentPicks,
-          pickIndex: nextIndex,
-          phase: nextIndex >= 14 ? 'substitute' : 'drafting',
-          substituteTurn: nextIndex >= 14 ? 'me' : null,
-        });
-      },
+  recordToss: (firstPickerId) => {
+  const me = (window as any).Clerk?.user?.id;
+  const iAmFirst = firstPickerId === me;
+  const state = get();
 
-      pickSubstitute: (playerId) => {
-        const { phase, myPicks, opponentPicks, substituteTurn } = get();
-        if (phase !== 'substitute') return;
-        if (substituteTurn !== 'me') return;
-        if (myPicks.includes(playerId) || opponentPicks.includes(playerId))
-          return;
+  const totalPicks = state.myPicks.length + state.opponentPicks.length;
 
-        set({
-          mySubstitute: playerId,
-          substituteTurn: 'opponent',
-        });
-      },
+  set({
+    firstPicker: iAmFirst ? 'me' : 'opponent',
+    tossResult: iAmFirst ? 'won' : 'lost',
+    // If picks already exist, skip the toss animation — go straight to drafting
+    phase: totalPicks > 0 ? 'drafting' : 'toss',
+  });
 
-      simulateOpponentSubstitute: () => {
-        const { phase, myPicks, opponentPicks, substituteTurn, players } = get();
-        if (phase !== 'substitute') return;
-        if (substituteTurn !== 'opponent') return;
+  // Only show the toss animation on a fresh draft
+  if (totalPicks === 0) {
+    setTimeout(() => {
+      const current = get();
+      if (current.phase === 'toss') {
+        // 🚫 Don't touch pickIndex — it's already correct
+        set({ phase: 'drafting' });
+      }
+    }, 2500);
+  }
+},
 
-        const taken = new Set([...myPicks, ...opponentPicks]);
-        const available = players.filter((p) => !taken.has(p.id));
-        if (available.length === 0) return;
+  applyPickFromServer: ({ userId, playerId, pickIndex: serverIndex }) => {
+    const me = (window as any).Clerk?.user?.id;
+    const state = get();
+    const isMine = userId === me;
 
-        const pick = available[Math.floor(Math.random() * available.length)];
+    // --- Substitute picks (pick_index 14 or 15) ---
+    if (serverIndex === 14 || serverIndex === 15) {
+      if (isMine) {
+        if (state.mySubstitute === playerId) return;
+        set({ mySubstitute: playerId });
+      } else {
+        if (state.opponentSubstitute === playerId) return;
+        set({ opponentSubstitute: playerId });
+      }
 
-        set({
-          opponentSubstitute: pick.id,
-          substituteTurn: null,
-          phase: 'powers',
-        });
-      },
-
-      reset: () =>
-        set({
-          matchId: null,
-          stake: 0,
-          phase: 'toss',
-          firstPicker: null,
-          tossResult: null,
-          pickIndex: 0,
-          myPicks: [],
-          opponentPicks: [],
-          mySubstitute: null,
-          opponentSubstitute: null,
-          substituteTurn: null,
-        }),
-    }),
-    {
-      name: 'super7-draft',
-      partialize: (state) => ({
-        matchId: state.matchId,
-        stake: state.stake,
-        players: state.players,          // 🔑 added — fixes hydration bug
-        phase: state.phase,
-        firstPicker: state.firstPicker,
-        tossResult: state.tossResult,
-        pickIndex: state.pickIndex,
-        myPicks: state.myPicks,
-        opponentPicks: state.opponentPicks,
-        mySubstitute: state.mySubstitute,
-        opponentSubstitute: state.opponentSubstitute,
-        substituteTurn: state.substituteTurn,
-      }),
+      const mySub = isMine ? playerId : state.mySubstitute;
+      const oppSub = isMine ? state.opponentSubstitute : playerId;
+      if (mySub && oppSub) {
+        set({ phase: 'powers', substituteTurn: null });
+      } else {
+        set({ substituteTurn: isMine ? 'opponent' : 'me' });
+      }
+      return;
     }
-  )
-);
+
+    // --- Main picks (pick_index 0-13) ---
+    if (isMine && state.myPicks.includes(playerId)) return;
+    if (!isMine && state.opponentPicks.includes(playerId)) return;
+
+    const nextMyPicks = isMine ? [...state.myPicks, playerId] : state.myPicks;
+    const nextOpponentPicks = isMine
+      ? state.opponentPicks
+      : [...state.opponentPicks, playerId];
+
+    const totalPicks = nextMyPicks.length + nextOpponentPicks.length;
+
+    if (totalPicks >= 14) {
+      const firstPickerSide = state.firstPicker;
+      set({
+        myPicks: nextMyPicks,
+        opponentPicks: nextOpponentPicks,
+        pickIndex: totalPicks,
+        phase: 'substitute',
+        substituteTurn: firstPickerSide,
+      });
+    } else {
+      set({
+        myPicks: nextMyPicks,
+        opponentPicks: nextOpponentPicks,
+        pickIndex: totalPicks,
+      });
+    }
+  },
+
+  reset: () =>
+    set({
+      matchId: null,
+      stake: 0,
+      phase: 'lobby',
+      firstPicker: null,
+      tossResult: null,
+      pickIndex: 0,
+      myPicks: [],
+      opponentPicks: [],
+      mySubstitute: null,
+      opponentSubstitute: null,
+      substituteTurn: null,
+    }),
+}));
 
 export function currentSide(
   pickIndex: number,

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useGSAP } from '@gsap/react';
 import { useDraftStore } from '../draftStore';
 import { usePowersStore } from '../powersStore';
+import { useSupabase } from '../../../lib/useSupabase';
 import { gsap } from '../../../animations/gsap.config';
 import { PlayerSelectCard } from './PlayerSelectCard';
 import { PowersProgress } from './PowersProgress';
@@ -37,9 +38,16 @@ const STEP_COPY: Record<
 const VALID_STEPS = ['captain', 'vice-captain', 'poison', 'confirm'] as const;
 type ValidStep = (typeof VALID_STEPS)[number];
 
-export function PowersScreen() {
+type Props = {
+  contestId: string;
+  matchId: string;
+  stake: number;
+};
+
+export function PowersScreen({ contestId, matchId, stake }: Props) {
   const navigate = useNavigate();
   const pageRef = useRef<HTMLDivElement>(null);
+  const supabase = useSupabase();
 
   const myPicks = useDraftStore((s) => s.myPicks);
   const opponentPicks = useDraftStore((s) => s.opponentPicks);
@@ -50,18 +58,30 @@ export function PowersScreen() {
   const myCaptain = usePowersStore((s) => s.myCaptain);
   const myViceCaptain = usePowersStore((s) => s.myViceCaptain);
   const myPoison = usePowersStore((s) => s.myPoison);
+  const setContestId = usePowersStore((s) => s.setContestId);
   const setCaptain = usePowersStore((s) => s.setCaptain);
   const setViceCaptain = usePowersStore((s) => s.setViceCaptain);
   const setPoison = usePowersStore((s) => s.setPoison);
   const confirmPowers = usePowersStore((s) => s.confirm);
-  const simulateOpponentPowers = usePowersStore((s) => s.simulateOpponentPowers);
+  const setPowersSupabase = usePowersStore((s: any) => s.__setSupabase);
+  const resetPowers = usePowersStore((s) => s.reset);
 
-  // Fallback to 'captain' if step is invalid (e.g. stale 'complete' from persist)
+  // Set contestId + supabase ref
+  useEffect(() => {
+    setContestId(contestId);
+    if (supabase) {
+      import('../powersStore').then((mod) => {
+        if (mod.setPowersSupabase) mod.setPowersSupabase(supabase);
+      });
+    }
+  }, [contestId, supabase, setContestId]);
+
+  // Fallback to 'captain' if step is invalid
   const step: ValidStep = (VALID_STEPS as readonly string[]).includes(rawStep)
     ? (rawStep as ValidStep)
     : 'captain';
 
-  // Self-heal persisted 'complete' state on mount
+  // Self-heal an invalid step
   useEffect(() => {
     const state = usePowersStore.getState();
     if (
@@ -69,17 +89,11 @@ export function PowersScreen() {
       !(VALID_STEPS as readonly string[]).includes(state.step)
     ) {
       state.reset();
+      state.setContestId(contestId);
     }
-  }, []);
+  }, [contestId]);
 
-  // Simulate opponent powers once we reach confirm
-  useEffect(() => {
-    if (step === 'confirm') {
-      simulateOpponentPowers(opponentPicks, myPicks);
-    }
-  }, [step, opponentPicks, myPicks, simulateOpponentPowers]);
-
-  // Safe entrance animation — fromTo + clearProps so nothing gets stuck
+  // Entrance animation
   useGSAP(() => {
     const targets = gsap.utils.toArray<HTMLElement>('.powers-fade');
     if (targets.length === 0) return;
@@ -108,9 +122,9 @@ export function PowersScreen() {
 
   const copy = STEP_COPY[step];
 
-  const handleConfirm = () => {
-    confirmPowers();
-    navigate('/live-match/demo?stake=200');
+  const handleConfirm = async () => {
+    await confirmPowers();
+    navigate(`/live-match/${matchId}?stake=${stake}`);
   };
 
   return (
