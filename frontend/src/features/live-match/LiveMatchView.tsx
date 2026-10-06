@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useGSAP } from '@gsap/react';
 import { useDraftStore } from '../draft/draftStore';
-import { usePowersStore } from '../draft/powersStore';
 import { useLiveMatchStore } from './liveMatchStore';
 import { applyMultiplier, type PlayerMultipliers } from './pointsEngine';
 import { generateBallEvent, resetMockMatch,rotateStrikeOnOverEnd,} from './mockEvents';
@@ -13,6 +12,10 @@ import { PlayerPointsRow } from './components/PlayerPointsRow';
 import { EventTicker } from './components/EventTicker';
 import { useMatchesStore } from '../wallet/matchesStore';
 import { useMyContestsStore } from '../contests/myContestsStore';
+import { useContestsStore } from '../contests/contestsStore';
+import { usePowersStore, setPowersSupabase } from '../draft/powersStore';
+import { useSupabase } from '../../lib/useSupabase';
+import { useDraftSync } from '../draft/useDraftSync';
   
 
 
@@ -23,6 +26,8 @@ export function LiveMatchView() {
   const pageRef = useRef<HTMLDivElement>(null);
   const completeEntry = useMyContestsStore((s) => s.completeEntry);
   const updateStatus = useMyContestsStore((s) => s.updateStatus);
+  const contestId = useContestsStore((s) => s.active?.id ?? null);
+useDraftSync(contestId);
 
   const players = useDraftStore((s) => s.players);
   const myPicks = useDraftStore((s) => s.myPicks);
@@ -42,6 +47,9 @@ export function LiveMatchView() {
   const isComplete = useLiveMatchStore((s) => s.isComplete);
   const applyEvent = useLiveMatchStore((s) => s.applyEvent);
   const complete = useLiveMatchStore((s) => s.complete);
+  const supabase = useSupabase();
+const setContestId = usePowersStore((s) => s.setContestId);
+const loadPowers = usePowersStore((s) => s.loadPowers);
 
 
 
@@ -205,6 +213,17 @@ const activeContest = useMatchesStore((s) => s.active);
   totalPoints,
 ]);
 
+useEffect(() => {
+  if (supabase) setPowersSupabase(supabase);
+}, [supabase]);
+
+useEffect(() => {
+  if (!contestId) return;
+  setContestId(contestId);
+  // Load both players' powers from DB
+  loadPowers();
+}, [contestId, setContestId, loadPowers]);
+
   return (
     <div ref={pageRef} className="min-h-screen bg-black pt-24 pb-16">
       <div className="mx-auto max-w-6xl px-6">
@@ -256,11 +275,13 @@ const activeContest = useMatchesStore((s) => s.active);
               {iWon ? 'You won!' : tied ? 'Tied match' : 'You lost'}
             </h2>
             <p className="mt-3 text-white/60">
-              {iWon
-                ? `You take the pot: ${stake * 2} coins`
-                : tied
-                ? 'Stakes refunded'
-                : `Opponent takes the pot: ${stake * 2} coins`}
+              {stake === 0
+  ? 'Free contest — bragging rights only'
+  : iWon
+  ? `You take the pot: ${stake * 2} coins`
+  : tied
+  ? 'Stakes refunded'
+  : `Opponent takes the pot: ${stake * 2} coins`}
             </p>
             <button
               onClick={() => navigate('/contests')}

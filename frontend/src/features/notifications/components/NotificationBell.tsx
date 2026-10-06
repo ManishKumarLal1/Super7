@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useNotificationsStore } from '../notificationsStore';
+import { useNotifications, useNotificationsStore } from '../notificationsStore';
 
 const TYPE_ICONS: Record<string, string> = {
   invite: '🎟️',
@@ -12,16 +12,20 @@ const TYPE_ICONS: Record<string, string> = {
 
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
-  const items = useNotificationsStore((s) => s.items);
+  const { items } = useNotifications();
   const markAllRead = useNotificationsStore((s) => s.markAllRead);
   const markRead = useNotificationsStore((s) => s.markRead);
   const navigate = useNavigate();
   const unread = items.filter((n) => !n.read).length;
 
-  const handleClick = (id: string, actionUrl?: string) => {
-    markRead(id);
+  const handleClick = async (id: string, actionUrl?: string | null) => {
+    await markRead(id);
     setOpen(false);
     if (actionUrl) navigate(actionUrl);
+  };
+
+  const handleMarkAllRead = async () => {
+    await markAllRead();
   };
 
   return (
@@ -48,7 +52,7 @@ export function NotificationBell() {
               </div>
               {unread > 0 && (
                 <button
-                  onClick={markAllRead}
+                  onClick={handleMarkAllRead}
                   className="text-[10px] uppercase tracking-widest text-emerald-400 hover:text-emerald-300"
                 >
                   Mark all read
@@ -70,14 +74,16 @@ export function NotificationBell() {
                       !n.read ? 'bg-emerald-400/[0.03]' : ''
                     }`}
                   >
-                    <span className="mt-0.5 text-lg">{TYPE_ICONS[n.type]}</span>
+                    <span className="mt-0.5 text-lg">{TYPE_ICONS[n.type] ?? '🔔'}</span>
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-semibold text-white">
                         {n.title}
                       </div>
-                      <div className="mt-0.5 truncate text-xs text-white/50">
-                        {n.body}
-                      </div>
+                      {n.body && (
+                        <div className="mt-0.5 truncate text-xs text-white/50">
+                          {n.body}
+                        </div>
+                      )}
                       <div className="mt-1 text-[10px] uppercase tracking-widest text-white/30">
                         {new Date(n.timestamp).toLocaleTimeString([], {
                           hour: '2-digit',

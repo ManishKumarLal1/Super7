@@ -51,7 +51,6 @@ export const useLiveMatchStore = create<LiveMatchState>()(
       applyEvent: (event) =>
         set((state) => {
           const deltas = eventPoints(event);
-
           const nextPoints = { ...state.totalPoints };
           for (const [id, pts] of Object.entries(deltas)) {
             nextPoints[id] = (nextPoints[id] ?? 0) + pts;

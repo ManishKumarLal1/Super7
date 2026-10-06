@@ -21,21 +21,29 @@ export function useLiveMatchEngine() {
   const complete = useLiveMatchStore((s) => s.complete);
   const startMatch = useLiveMatchStore((s) => s.startMatch);
 
-  // Initialize mock state when a new match becomes active
   useEffect(() => {
     if (!activeMatchId) return;
-    if (storeMatchId === activeMatchId) return; // already running
 
     const battingSquad = players.filter((p) => p.team === 'IND');
     const bowlingSquad = players.filter((p) => p.team === 'AUS');
 
-    startMatch(activeMatchId, `live-${Date.now()}`);
-    resetMockMatch(battingSquad, bowlingSquad);
-  }, [activeMatchId, storeMatchId, players, startMatch]);
+    // Fresh match: reset store + mock
+    if (storeMatchId !== activeMatchId) {
+      startMatch(activeMatchId, `live-${Date.now()}`);
+      resetMockMatch(battingSquad, bowlingSquad);
+      return; // effect will re-run when storeMatchId updates
+    }
 
-  // Run the ball stream — the actual engine
-  useEffect(() => {
-    if (!activeMatchId) return;
+    // Same match (refresh/resume): init mock and fast-forward to current ball
+    resetMockMatch(battingSquad, bowlingSquad);
+    const currentScore = useLiveMatchStore.getState().score;
+    for (let i = 0; i < currentScore.balls; i++) {
+      const over = Math.floor(i / 6);
+      const ballInOver = (i % 6) + 1;
+      generateBallEvent(over, ballInOver);
+      if (ballInOver === 6) rotateStrikeOnOverEnd();
+    }
+
     if (isComplete) return;
 
     const interval = setInterval(() => {
@@ -61,5 +69,14 @@ export function useLiveMatchEngine() {
     }, BALL_INTERVAL_MS);
 
     return () => clearInterval(interval);
-  }, [activeMatchId, isComplete, applyEvent, complete]);
+  }, [
+    activeMatchId,
+    storeMatchId,
+    isComplete,
+    players,
+    startMatch,
+    resetMockMatch,
+    applyEvent,
+    complete,
+  ]);
 }

@@ -25,6 +25,15 @@ export function ContestsPage() {
   const createContest = useContestsStore((s) => s.create);
   const joinContest = useContestsStore((s) => s.join);
   const createEntry = useMyContestsStore((s) => s.createEntry);
+  const [joinCode, setJoinCode] = useState<string | null>(null);
+
+  useEffect(() => {
+  const code = search.get('join');
+  if (code) {
+    setJoinCode(code.toUpperCase());
+    setJoinOpen(true);
+  }
+}, [search]);
 
   // Auto-open join modal if ?join=CODE
   useEffect(() => {
@@ -208,10 +217,14 @@ export function ContestsPage() {
         onCreate={handleCreate}
       />
       <JoinContestModal
-        open={joinOpen}
-        onClose={() => setJoinOpen(false)}
-        onJoin={handleJoin}
-      />
+  open={joinOpen}
+  onClose={() => {
+    setJoinOpen(false);
+    setJoinCode(null);
+  }}
+  onJoin={handleJoin}
+  defaultCode={joinCode ?? undefined}
+/>
     </div>
   );
 }

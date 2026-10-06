@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useChatStore } from '../../chat/chatStore';
 import { useFriendsStore } from '../../friends/friendsStore';
 import { useActiveContest, useContestsStore } from '../contestsStore';
+import { useNotificationsStore } from '../../notifications/notificationsStore';
 
 export function ContestWaitingRoom() {
   const active = useActiveContest();
@@ -12,6 +13,7 @@ const leave = useContestsStore((s) => s.leave);
   const navigate = useNavigate();
   const [copied, setCopied] = useState<'code' | 'link' | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
+  const pushToUser = useNotificationsStore((s) => s.pushToUser);
 
 
   
@@ -27,20 +29,35 @@ const leave = useContestsStore((s) => s.leave);
     setTimeout(() => setCopied(null), 1500);
   };
 
-  const shareWithFriend = (friendId: string) => {
-    const friend = friends.find((f) => f.id === friendId);
-    if (!friend) return;
+  const shareWithFriend = async (friendId: string) => {
+  const friend = friends.find((f) => f.id === friendId);
+  if (!friend || !active) return;
 
-    sendMessage(
-      friend.id,
-      `I challenged you to a Super 7 contest! ${active.stake === 0 ? 'Free entry' : `${active.stake} coins`} · Code: ${active.code}`,
-      {
-        contestCode: active.code,
-        actionUrl: `/contests?join=${active.code}`,
-      }
-    );
-    setShareOpen(false);
-  };
+  // 1. Send the chat message (existing behavior)
+  sendMessage(
+    friend.id,
+    `I challenged you to a Super 7 contest! ${
+      active.stake === 0 ? 'Free entry' : `${active.stake} coins`
+    } · Code: ${active.code}`,
+    {
+      contestCode: active.code,
+      actionUrl: `/contests?join=${active.code}`,
+    }
+  );
+
+  // 2. Push a notification to the friend
+  await pushToUser({
+    userId: friend.id,
+    type: 'invite',
+    title: 'Contest invite',
+    body: `Join with code ${active.code} — ${
+      active.stake === 0 ? 'Free' : `${active.stake} coins`
+    }`,
+    actionUrl: `/contests?join=${active.code}`,
+  });
+
+  setShareOpen(false);
+};
 
   const handleStart = () => {
     navigate(`/draft/${active.matchId}?stake=${active.stake}&code=${active.code}`);

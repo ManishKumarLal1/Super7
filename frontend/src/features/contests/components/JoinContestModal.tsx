@@ -5,10 +5,16 @@ type Props = {
   open: boolean;
   onClose: () => void;
   onJoin: (code: string) => void;
+  defaultCode?: string;
 };
 
-export function JoinContestModal({ open, onClose, onJoin }: Props) {
-  const [code, setCode] = useState('');
+export function JoinContestModal({ open, onClose, onJoin, defaultCode }: Props) {
+  const [code, setCode] = useState(defaultCode ?? '');
+
+  useEffect(() => {
+    if (open) setCode((defaultCode ?? '').toUpperCase());
+  }, [open, defaultCode]);
+
   const overlayRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 

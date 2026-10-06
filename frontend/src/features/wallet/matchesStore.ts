@@ -84,51 +84,53 @@ export const useMatchesStore = create<MatchesState>()(
       },
 
       settleContest: async ({ result, myPoints, opponentPoints, details }) => {
-        const { active, history } = get();
-        if (!active) return;
+  const { active, history } = get();
+  if (!active) return;
 
-        const { stake, matchId, sessionId } = active;
-        let payout = 0;
+  const { stake, matchId, sessionId } = active;
+  let payout = 0;
 
-        if (result === 'won') {
-          payout = stake * 2;
-          await useWalletStore
-            .getState()
-            .credit(payout, `Won: ${matchId}`, 'payout');
-        } else if (result === 'tied') {
-          payout = stake;
-          await useWalletStore
-            .getState()
-            .credit(payout, `Refund (tied): ${matchId}`, 'refund');
-        }
+  if (result === 'won' && stake > 0) {          // ← guard stake > 0
+    payout = stake * 2;
+    await useWalletStore
+      .getState()
+      .credit(payout, `Won: ${matchId}`, 'payout');
+  } else if (result === 'tied' && stake > 0) {  // ← guard stake > 0
+    payout = stake;
+    await useWalletStore
+      .getState()
+      .credit(payout, `Refund (tied): ${matchId}`, 'refund');
+  }
 
-        set({
-          active: null,
-          history: [
-            {
-              id: sessionId,
-              matchId,
-              stake,
-              result,
-              myPoints,
-              opponentPoints,
-              payout,
-              timestamp: Date.now(),
-              details,
-            },
-            ...history,
-          ].slice(0, 100),
-        });
+  set({
+    active: null,
+    history: [
+      {
+        id: sessionId,
+        matchId,
+        stake,
+        result,
+        myPoints,
+        opponentPoints,
+        payout,
+        timestamp: Date.now(),
+        details,
       },
+      ...history,
+    ].slice(0, 100),
+  });
+},
 
       abandonContest: async () => {
-        const { active } = get();
-        if (!active) return;
-        await useWalletStore
-          .getState()
-          .credit(active.stake, 'Refund: abandoned', 'refund');
-        set({ active: null });
-      },
+  const { active } = get();
+  if (!active) return;
+  if (active.stake > 0) {                        // ← guard
+    await useWalletStore
+      .getState()
+      .credit(active.stake, 'Refund: abandoned', 'refund');
+  }
+  set({ active: null });
+},
 
       reset: () => set({ active: null, history: [] }),
     }),

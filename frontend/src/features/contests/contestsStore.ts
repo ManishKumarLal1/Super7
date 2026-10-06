@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { useWalletStore } from '../wallet/hooks/useWallet';
 import { useSupabase } from '../../lib/useSupabase';
 import { useEffect } from 'react';
+import { useMatchesStore } from '../wallet/matchesStore';
 
 export type ContestStatus = 'waiting' | 'ready' | 'drafting' | 'live' | 'completed' | 'cancelled';
 export type ContestRole = 'creator' | 'joiner';
@@ -158,7 +159,15 @@ export const useContestsStore = create<ContestsState>()(
           createdAt: new Date(contestRow.created_at).getTime(),
           expiresAt: new Date(contestRow.expires_at).getTime(),
         };
-
+        // Set matchesStore.active so the live match engine fires
+useMatchesStore.setState({
+  active: {
+    sessionId: crypto.randomUUID(),
+    matchId,
+    stake,
+    startedAt: Date.now(),
+  },
+});
         set({ active: contest });
         return contest;
       },
@@ -285,6 +294,14 @@ export const useContestsStore = create<ContestsState>()(
     createdAt: new Date(contestRow.created_at).getTime(),
     expiresAt: new Date(contestRow.expires_at).getTime(),
   };
+  useMatchesStore.setState({
+  active: {
+    sessionId: crypto.randomUUID(),
+    matchId: contestRow.match_id,
+    stake: contestRow.stake,
+    startedAt: Date.now(),
+  },
+});
 
   set({ active: contest });
   return contest;
@@ -355,40 +372,32 @@ export const useContestsStore = create<ContestsState>()(
       },
 
       leave: async () => {
-        const { active } = get();
-        if (!active) return;
+  const { active } = get();
+  if (!active) return;
+  if (!_supabase) return;
+  const me = (window as any).Clerk?.user?.id;
 
-        if (!_supabase) return;
-        const me = (window as any).Clerk?.user?.id;
+  if (active.role === 'creator' && active.status === 'waiting') {
+    if (active.stake > 0 && me) {                // ← guard
+      await useWalletStore
+        .getState()
+        .credit(active.stake, 'Refund: cancelled contest', 'refund');
+    }
+    await _supabase
+      .from('contests')
+      .update({ status: 'cancelled' })
+      .eq('id', active.id);
+  } else if (me) {
+    if (active.stake > 0) {                      // ← guard
+      await useWalletStore
+        .getState()
+        .credit(active.stake, 'Refund: left contest', 'refund');
+    }
+    // ...
+  }
 
-        // If I'm the creator and it's still waiting, refund + cancel
-        // If I'm the joiner, just remove my player row
-        if (active.role === 'creator' && active.status === 'waiting') {
-          if (active.stake > 0 && me) {
-            await useWalletStore
-              .getState()
-              .credit(active.stake, 'Refund: cancelled contest', 'refund');
-          }
-          await _supabase
-            .from('contests')
-            .update({ status: 'cancelled' })
-            .eq('id', active.id);
-        } else if (me) {
-          // Refund stake
-          if (active.stake > 0) {
-            await useWalletStore
-              .getState()
-              .credit(active.stake, 'Refund: left contest', 'refund');
-          }
-          await _supabase
-            .from('contest_players')
-            .delete()
-            .eq('contest_id', active.id)
-            .eq('user_id', me);
-        }
-
-        set({ active: null });
-      },
+  set({ active: null });
+},
 
       reset: () => set({ active: null }),
     }),

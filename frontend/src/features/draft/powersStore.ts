@@ -19,6 +19,7 @@ type PowersState = {
   setPoison: (id: string) => void;
   confirm: () => Promise<void>;
   reset: () => void;
+  loadPowers: () => Promise<void>;
 };
 
 let _supabase: any = null;
@@ -41,6 +42,38 @@ export const usePowersStore = create<PowersState>()((set, get) => ({
   setCaptain: (id) => set({ myCaptain: id, step: 'vice-captain' }),
   setViceCaptain: (id) => set({ myViceCaptain: id, step: 'poison' }),
   setPoison: (id) => set({ myPoison: id, step: 'confirm' }),
+  loadPowers: async () => {
+  const { contestId } = get();
+  const me = (window as any).Clerk?.user?.id;
+  if (!_supabase || !me || !contestId) return;
+
+  const { data: rows, error } = await _supabase
+    .from('contest_powers')
+    .select('user_id, captain_id, vice_captain_id, poison_target_id')
+    .eq('contest_id', contestId);
+
+  if (error) {
+    console.error('loadPowers failed:', error);
+    return;
+  }
+
+  const mine = (rows ?? []).find((r: any) => r.user_id === me);
+  const theirs = (rows ?? []).find((r: any) => r.user_id !== me);
+
+  set({
+    myCaptain: mine?.captain_id ?? null,
+    myViceCaptain: mine?.vice_captain_id ?? null,
+    myPoison: mine?.poison_target_id ?? null,
+    opponentCaptain: theirs?.captain_id ?? null,
+    opponentViceCaptain: theirs?.vice_captain_id ?? null,
+    opponentPoison: theirs?.poison_target_id ?? null,
+  });
+
+  console.log('[powers] loaded', {
+    mine: mine ? 'yes' : 'no',
+    theirs: theirs ? 'yes' : 'no',
+  });
+},
 
   confirm: async () => {
     const { contestId, myCaptain, myViceCaptain, myPoison } = get();
