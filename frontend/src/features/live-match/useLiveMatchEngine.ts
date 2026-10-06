@@ -1,12 +1,12 @@
 import { useEffect } from 'react';
 import { useLiveMatchStore } from './liveMatchStore';
 import { useMatchesStore } from '../wallet/matchesStore';
+import { useDraftStore } from '../draft/draftStore';
 import {
   generateBallEvent,
   resetMockMatch,
   rotateStrikeOnOverEnd,
 } from './mockEvents';
-import { useDraftStore } from '../draft/draftStore';
 
 const BALL_INTERVAL_MS = 2000;
 const MATCH_DURATION_BALLS = 120;
@@ -33,7 +33,7 @@ export function useLiveMatchEngine() {
     resetMockMatch(battingSquad, bowlingSquad);
   }, [activeMatchId, storeMatchId, players, startMatch]);
 
-  // Run the ball stream — this is the engine
+  // Run the ball stream — the actual engine
   useEffect(() => {
     if (!activeMatchId) return;
     if (isComplete) return;
