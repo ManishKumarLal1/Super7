@@ -19,10 +19,14 @@ export function NotificationBell() {
   const unread = items.filter((n) => !n.read).length;
 
   const handleClick = async (id: string, actionUrl?: string | null) => {
-    await markRead(id);
-    setOpen(false);
-    if (actionUrl) navigate(actionUrl);
-  };
+  await markRead(id);
+  setOpen(false);
+  if (actionUrl) {
+    // Append a timestamp so the URL always changes — forces a fresh nav
+    const sep = actionUrl.includes('?') ? '&' : '?';
+    navigate(`${actionUrl}${sep}t=${Date.now()}`);
+  }
+};
 
   const handleMarkAllRead = async () => {
     await markAllRead();

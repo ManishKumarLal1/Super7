@@ -85,25 +85,42 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   sendMessage: async (threadId, text, metadata) => {
-    if (!_supabase) return;
-    const me = (window as any).Clerk?.user?.id;
-    if (!me) return;
+  const me = (window as any).Clerk?.user?.id;
+  console.log('[chat] sendMessage called', {
+    threadId,
+    hasSupabase: !!_supabase,
+    hasMe: !!me,
+    text: text.slice(0, 30),
+  });
 
-    const { error } = await _supabase.from('messages').insert({
+  if (!_supabase) {
+    console.error('[chat] FAILED: no supabase ref');
+    return;
+  }
+  if (!me) {
+    console.error('[chat] FAILED: no Clerk user');
+    return;
+  }
+
+  const { data, error } = await _supabase
+    .from('messages')
+    .insert({
       thread_id: threadId,
       sender_id: me,
       text,
       metadata: metadata ?? null,
       read: false,
-    });
+    })
+    .select();
 
-    if (error) {
-      console.error('sendMessage error:', error);
-      return;
-    }
+  if (error) {
+    console.error('[chat] insert error:', JSON.stringify(error, null, 2));
+    return;
+  }
 
-    await get().load();
-  },
+  console.log('[chat] insert success:', data);
+  await get().load();
+},
 
   markThreadRead: async (threadId) => {
     if (!_supabase) return;

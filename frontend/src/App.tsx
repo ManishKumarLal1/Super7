@@ -27,6 +27,7 @@ import { MatchReportPage } from './pages/MatchReportPage'
 import { useFriends } from './features/friends/friendsStore';
 import { useChat } from './features/chat/chatStore';
 import {useActiveContest, useContestsInit, } from './features/contests/contestsStore';
+import { JoinContestPage } from './pages/JoinContestPage';
 
 
 function App() {
@@ -67,6 +68,7 @@ function App() {
         <Route path="/match/:id" element={<MatchDetailPage />} />
         <Route path="/my-contests" element={<MyContestsPage />} />
         <Route path="/report/:entryId" element={<MatchReportPage />} />
+        <Route path="/join/:code" element={<JoinContestPage />} />
       </Routes>
       <Footer />
     </>

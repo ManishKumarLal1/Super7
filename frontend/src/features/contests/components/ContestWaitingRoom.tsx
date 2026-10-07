@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useChatStore } from '../../chat/chatStore';
-import { useFriendsStore } from '../../friends/friendsStore';
+import { useChatStore, threadIdFor } from '../../chat/chatStore';
+import { useFriends } from '../../friends/friendsStore';
 import { useActiveContest, useContestsStore } from '../contestsStore';
 import { useNotificationsStore } from '../../notifications/notificationsStore';
 
+
 export function ContestWaitingRoom() {
   const active = useActiveContest();
-const leave = useContestsStore((s) => s.leave);
-  const friends = useFriendsStore((s) => s.friends);
+  const leave = useContestsStore((s) => s.leave);
+  const { friends } = useFriends();               // ✅ new hook
   const sendMessage = useChatStore((s) => s.sendMessage);
   const navigate = useNavigate();
   const [copied, setCopied] = useState<'code' | 'link' | null>(null);
@@ -33,15 +34,21 @@ const leave = useContestsStore((s) => s.leave);
   const friend = friends.find((f) => f.id === friendId);
   if (!friend || !active) return;
 
-  // 1. Send the chat message (existing behavior)
+  const me = (window as any).Clerk?.user?.id;
+  if (!me) return;
+
+  // ✅ Use the same thread ID format that ChatPanel expects
+  const tId = threadIdFor(me, friend.id);
+
+  // 1. Send the chat message to the correct thread
   sendMessage(
-    friend.id,
+    tId,
     `I challenged you to a Super 7 contest! ${
       active.stake === 0 ? 'Free entry' : `${active.stake} coins`
     } · Code: ${active.code}`,
     {
       contestCode: active.code,
-      actionUrl: `/contests?join=${active.code}`,
+      actionUrl: `/join/${active.code}`,
     }
   );
 
@@ -53,7 +60,7 @@ const leave = useContestsStore((s) => s.leave);
     body: `Join with code ${active.code} — ${
       active.stake === 0 ? 'Free' : `${active.stake} coins`
     }`,
-    actionUrl: `/contests?join=${active.code}`,
+    actionUrl: `/join/${active.code}`,
   });
 
   setShareOpen(false);

@@ -5,7 +5,7 @@ import { MOCK_MATCHES } from '../../contests/mockMatches';
 import { useWallet } from '../../wallet/hooks/useWallet';
 import { useContestsStore } from '../../contests/contestsStore';
 import type { Friend } from '../friendsStore';
-import { useChatStore } from '../../chat/chatStore';
+import { useChatStore, threadIdFor } from '../../chat/chatStore';
 import { useNotificationsStore } from '../../notifications/notificationsStore';
 
 type Props = {
@@ -50,39 +50,49 @@ export function InviteModal({ friend, onClose }: Props) {
   const canInvite = matchId !== null && stake !== null && balance >= stake;
 
   const handleInvite = async () => {
-    if (!canInvite || !matchId || !stake) return;
+  if (!canInvite || !matchId || !stake) return;
 
-    // 1. Create the contest (deducts stake, generates code)
-    const contest = await createContest(matchId, stake);
-    if (!contest) {
-      alert('Not enough coins');
-      return;
+  const me = (window as any).Clerk?.user?.id;
+  if (!me) return;
+
+  // 1. Create the contest (deducts stake, generates code)
+  const contest = await createContest(matchId, stake);
+  if (!contest) {
+    alert('Could not create contest — check console for details.');
+    return;
+  }
+
+  // 2. Send chat message to the correct thread
+  const sendMessage = useChatStore.getState().sendMessage;
+  const tId = threadIdFor(me, friend.id);
+
+  sendMessage(
+    tId,
+    `I challenged you to Super 7! ${
+      stake === 0 ? 'Free entry' : `${stake} coins`
+    } · Code: ${contest.code}`,
+    {
+      contestCode: contest.code,
+      actionUrl: `/join/${contest.code}`,
     }
+  );
 
-    // 2. Send chat message with the real code
-    const sendMessage = useChatStore.getState().sendMessage;
-    sendMessage(
-      friend.id,
-      `I challenged you to Super 7! ${stake} coins · Code: ${contest.code}`,
-      {
-        contestCode: contest.code,
-        actionUrl: `/contests?join=${contest.code}`,
-      }
-    );
+  // 3. Push a notification to the friend
+  const pushToUser = useNotificationsStore.getState().pushToUser;
+  await pushToUser({
+    userId: friend.id,
+    type: 'invite',
+    title: 'Contest invite',
+    body: `Join with code ${contest.code} — ${
+      stake === 0 ? 'Free' : `${stake} coins`
+    }`,
+    actionUrl: `/join/${contest.code}`,
+  });
 
-    // 3. Push a notification
-    const pushNotif = useNotificationsStore.getState().push;
-    pushNotif({
-      type: 'invite',
-      title: 'Invite sent',
-      body: `Challenge sent to ${friend.name}`,
-      actionUrl: `/contests?join=${contest.code}`,
-    });
-
-    // 4. Route to the waiting room with the real code
-    onClose();
-    navigate(`/contest/${contest.code}`);
-  };
+  // 4. Route to the waiting room
+  onClose();
+  navigate(`/contest/${contest.code}`);
+};
 
   return (
     <div
